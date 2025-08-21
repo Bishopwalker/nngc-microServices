@@ -1,4 +1,4 @@
-package org.nngc;
+package main.test;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeAll;
@@ -83,7 +83,7 @@ class CustomerControllerTest {
     }
 
     /**
-     * Creates a test customer with the specified parameters
+     * Creates a test customerId with the specified parameters
      */
     private static Customer createTestCustomer(Long id, String email, AppUserRoles role) {
         return Customer.builder()
@@ -99,7 +99,7 @@ class CustomerControllerTest {
                 .state("VA")
                 .zipCode("23230")
                 .county("Henrico")
-                .latitude(37.5407 + id * 0.001) // Slight variation for each customer
+                .latitude(37.5407 + id * 0.001) // Slight variation for each customerId
                 .longitude(-77.4360 + id * 0.001)
                 .geoLocation((37.5407 + id * 0.001) + "," + (-77.4360 + id * 0.001))
                 .service("Weekly Pickup")
@@ -140,7 +140,7 @@ class CustomerControllerTest {
                 .thenReturn(Optional.empty());
     }
 
-    // Test methods using the shared customer data
+    // Test methods using the shared customerId data
 
     @Test
     void testGetCustomerById_AsAdmin_ShouldReturnCustomer() throws Exception {
@@ -153,11 +153,11 @@ class CustomerControllerTest {
         when(customerService.getCustomerById(1L)).thenReturn(expectedResponse);
 
         // Act & Assert
-        mockMvc.perform(get("/customer/customers/1")
+        mockMvc.perform(MockMvcRequestBuilders.get("/customerId/customers/1")
                         .header("Authorization", "admin-token-456"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.message").value("Customer found"))
-                .andExpect(jsonPath("$.customerDTO.email").value("john.doe@example.com"));
+                .andExpect(MockMvcResultMatchers.status().isOk())
+                .andExpect(MockMvcResultMatchers.jsonPath("$.message").value("Customer found"))
+                .andExpect(MockMvcResultMatchers.jsonPath("$.customerDTO.email").value("john.doe@example.com"));
     }
 
     @Test
@@ -171,10 +171,10 @@ class CustomerControllerTest {
         when(customerService.getCustomers()).thenReturn(expectedResponse);
 
         // Act & Assert
-        mockMvc.perform(get("/customer/customers")
+        mockMvc.perform(MockMvcRequestBuilders.get("/customerId/customers")
                         .header("Authorization", "admin-token-456"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.message").value("Customers retrieved successfully"));
+                .andExpect(MockMvcResultMatchers.status().isOk())
+                .andExpect(MockMvcResultMatchers.jsonPath("$.message").value("Customers retrieved successfully"));
     }
 
     @Test
@@ -189,18 +189,18 @@ class CustomerControllerTest {
                 .thenReturn(expectedResponse);
 
         // Act & Assert
-        mockMvc.perform(put("/customer/customers/1")
+        mockMvc.perform(MockMvcRequestBuilders.put("/customerId/customers/1")
                         .header("Authorization", "test-token-123")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(testCustomer)))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.message").value("Customer updated successfully"));
+                .andExpect(MockMvcResultMatchers.status().isOk())
+                .andExpect(MockMvcResultMatchers.jsonPath("$.message").value("Customer updated successfully"));
     }
 
     // Utility methods for creating variations when needed
 
     /**
-     * Create a new customer instance when you need to modify it for specific tests
+     * Create a new customerId instance when you need to modify it for specific tests
      */
     public static Customer createCustomerCopy(Customer original) {
         return Customer.builder()
@@ -230,7 +230,7 @@ class CustomerControllerTest {
     }
 
     /**
-     * Get different customer types for specific test scenarios
+     * Get different customerId types for specific test scenarios
      */
     public static Customer getRegularCustomer() { return testCustomer; }
     public static Customer getAdminCustomer() { return testAdminCustomer; }

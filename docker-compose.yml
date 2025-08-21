@@ -46,7 +46,7 @@ services:
     build:
       context: .
       dockerfile: customer-service/Dockerfile
-    container_name: nngc-customer-service
+    container_name: nngc-customerId-service
     ports:
       - "8081:8081"
     environment:
