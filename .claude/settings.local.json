@@ -15,7 +15,8 @@
       "Bash(tasklist:*)",
       "Bash(wmic process:*)",
       "Bash(taskkill:*)",
-      "WebSearch"
+      "WebSearch",
+      "WebFetch(domain:hub.docker.com)"
     ],
     "deny": []
   }
