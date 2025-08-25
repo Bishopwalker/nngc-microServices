@@ -78,7 +78,7 @@ unit_tests:
   artifacts:
     reports:
       junit: "**/target/surefire-reports/TEST-*.xml"
-      coverage: "**/target/site/jacoco/jacoco.xml"
+      cobertura: "**/target/site/jacoco/jacoco.xml"
     paths:
       - "**/target/site/jacoco/"
     expire_in: 1 week
