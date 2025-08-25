@@ -14,7 +14,8 @@
       "Bash(git add:*)",
       "Bash(tasklist:*)",
       "Bash(wmic process:*)",
-      "Bash(taskkill:*)"
+      "Bash(taskkill:*)",
+      "WebSearch"
     ],
     "deny": []
   }
