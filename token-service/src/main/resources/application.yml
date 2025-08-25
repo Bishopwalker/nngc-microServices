@@ -1,9 +1,33 @@
 server:
-  port: 8082
+  port: 8083
 
 spring:
   application:
     name: token-service
+  datasource:
+    url: ${DB_URL:jdbc:mysql://database-1.cyihwewbovug.us-east-1.rds.amazonaws.com:3306/nngc}
+    username: ${DB_USERNAME:admin}
+    password: ${DB_PASSWORD:Winter3721!!}
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    show-sql: false
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          jwk-set-uri: http://localhost:8080/realms/nngc-realm/protocol/openid-connect/certs
+          issuer-uri: http://localhost:8080/realms/nngc-realm
+      client:
+        registration:
+          keycloak:
+            client-id: token-service
+            client-secret: your-token-service-secret
+            authorization-grant-type: client_credentials
+            scope: openid,profile
+        provider:
+          keycloak:
+            issuer-uri: http://localhost:8080/realms/nngc-realm
 
 eureka:
   client:

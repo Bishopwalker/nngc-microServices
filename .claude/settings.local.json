@@ -4,7 +4,12 @@
       "WebFetch(domain:github.com)",
       "Bash(mkdir:*)",
       "Bash(mvn spring-boot:repackage:*)",
-      "Bash(mvn clean package:*)"
+      "Bash(mvn clean package:*)",
+      "Bash(docker-compose:*)",
+      "Bash(docker logs:*)",
+      "Bash(java:*)",
+      "Bash(mvn clean:*)",
+      "Bash(mvn:*)"
     ],
     "deny": []
   }

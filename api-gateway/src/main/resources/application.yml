@@ -4,6 +4,22 @@ server:
 spring:
   application:
     name: api-gateway
+# security:
+    # oauth2:
+      # resourceserver:
+        # jwt:
+          # jwk-set-uri: http://localhost:8080/realms/nngc-realm/protocol/openid-connect/certs
+          # issuer-uri: http://localhost:8080/realms/nngc-realm
+      # client:
+        # registration:
+          # keycloak:
+            # client-id: api-gateway
+            # client-secret: your-client-secret
+            # authorization-grant-type: client_credentials
+            # scope: openid,profile,email
+        # provider:
+          # keycloak:
+            # issuer-uri: http://localhost:8080/realms/nngc-realm
   cloud:
     gateway:
       discovery:
@@ -50,10 +66,6 @@ spring:
             - Path=/api/google/**
           filters:
             - StripPrefix=1
-# Spring Config
-  config:
-   activate:
-      on-profile: docker
 
 # Eureka Client Configuration
 eureka:
