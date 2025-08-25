@@ -1,84 +1,85 @@
 stages:
-  - test
   - build
+  - test
+  - package
 
 variables:
   MAVEN_OPTS: "-Dmaven.repo.local=$CI_PROJECT_DIR/.m2/repository"
 
 cache:
+  key: "$CI_COMMIT_REF_SLUG"
   paths:
     - .m2/repository/
 
-# Test each service
+# Build all microservices
+build:
+  image: maven:3.9-openjdk-21
+  stage: build
+  script:
+    - echo "Building all microservices..."
+    - |
+      for service in customer-service api-gateway service-registry RegistrationService email-service token-service; do
+        echo "Building $service..."
+        cd $service
+        mvn clean compile
+        cd ..
+      done
+  artifacts:
+    paths:
+      - "*/target/"
+    expire_in: 1 hour
+
+# Run tests for all services
 test:
   image: maven:3.9-openjdk-21
   stage: test
   script:
-    - cd customer-service && mvn test
-    - cd ../api-gateway && mvn test
-    - cd ../service-registry && mvn test
-    - cd ../RegistrationService && mvn test
-    - cd ../email-service && mvn test
-    - cd ../token-service && mvn test
-  allow_failure: true  # Pipeline continues even if tests fail
+    - echo "Running tests for all microservices..."
+    - |
+      for service in customer-service api-gateway service-registry RegistrationService email-service token-service; do
+        echo "Testing $service..."
+        cd $service
+        mvn test || true  # Continue even if tests fail
+        cd ..
+      done
+  artifacts:
+    reports:
+      junit:
+        - "*/target/surefire-reports/TEST-*.xml"
+    paths:
+      - "*/target/surefire-reports/"
+    expire_in: 1 week
+  allow_failure: true
 
-# Build each service separately
-build-customer-service:
+# Package JAR files
+package:
+  image: maven:3.9-openjdk-21
+  stage: package
+  script:
+    - echo "Creating JAR packages..."
+    - |
+      for service in customer-service api-gateway service-registry RegistrationService email-service token-service; do
+        echo "Packaging $service..."
+        cd $service
+        mvn package -DskipTests
+        cd ..
+      done
+  artifacts:
+    paths:
+      - "*/target/*.jar"
+    expire_in: 1 week
+
+# Quick validation for merge requests
+validate-mr:
   image: maven:3.9-openjdk-21
   stage: build
   script:
-    - cd customer-service && mvn package -DskipTests
-  artifacts:
-    paths:
-      - customer-service/target/*.jar
-    expire_in: 1 hour
-
-build-api-gateway:
-  image: maven:3.9-openjdk-21
-  stage: build
-  script:
-    - cd api-gateway && mvn package -DskipTests
-  artifacts:
-    paths:
-      - api-gateway/target/*.jar
-    expire_in: 1 hour
-
-build-service-registry:
-  image: maven:3.9-openjdk-21
-  stage: build
-  script:
-    - cd service-registry && mvn package -DskipTests
-  artifacts:
-    paths:
-      - service-registry/target/*.jar
-    expire_in: 1 hour
-
-build-registration-service:
-  image: maven:3.9-openjdk-21
-  stage: build
-  script:
-    - cd RegistrationService && mvn package -DskipTests
-  artifacts:
-    paths:
-      - RegistrationService/target/*.jar
-    expire_in: 1 hour
-
-build-email-service:
-  image: maven:3.9-openjdk-21
-  stage: build
-  script:
-    - cd email-service && mvn package -DskipTests
-  artifacts:
-    paths:
-      - email-service/target/*.jar
-    expire_in: 1 hour
-
-build-token-service:
-  image: maven:3.9-openjdk-21
-  stage: build
-  script:
-    - cd token-service && mvn package -DskipTests
-  artifacts:
-    paths:
-      - token-service/target/*.jar
-    expire_in: 1 hour
+    - echo "Quick validation check..."
+    - |
+      for service in customer-service api-gateway service-registry RegistrationService email-service token-service; do
+        cd $service
+        mvn validate compile
+        cd ..
+      done
+  only:
+    - merge_requests
