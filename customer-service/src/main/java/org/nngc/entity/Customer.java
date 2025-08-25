@@ -11,6 +11,7 @@ import org.springframework.security.core.userdetails.UserDetails;
 
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Objects;
 
 @Entity
 @Table(name = "customer")
@@ -326,5 +327,18 @@ public class Customer implements UserDetails {
         dto.setChangePassword(changePassword);
         dto.setService(service);
         return dto;
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (this == obj) return true;
+        if (obj == null || getClass() != obj.getClass()) return false;
+        Customer customer = (Customer) obj;
+        return Objects.equals(id, customer.id);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(id);
     }
 }

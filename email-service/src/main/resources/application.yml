@@ -1,0 +1,24 @@
+server:
+  port: 8084
+
+spring:
+  application:
+    name: email-service
+
+eureka:
+  client:
+    service-url:
+      defaultZone: http://localhost:8761/eureka/
+    fetch-registry: true
+    register-with-eureka: true
+  instance:
+    prefer-ip-address: true
+    
+# SendGrid Configuration
+sendgrid:
+  api-key: ${SENDGRID_API_KEY:your-sendgrid-api-key}
+
+logging:
+  level:
+    org.nngc: DEBUG
+    root: INFO

@@ -4,7 +4,8 @@ import org.nngc.dto.CustomerDTO;
 import org.nngc.entity.Customer;
 import org.nngc.repository.CustomerRepository;
 import org.nngc.service.CustomerService;
-import org.springframework.beans.factory.annotation.Autowired;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import jakarta.transaction.Transactional;
 
@@ -14,8 +15,13 @@ import java.util.List;
 @Transactional
 public class CustomerServiceImpl implements CustomerService {
 
-    @Autowired
-    private CustomerRepository customerRepository;
+    private static final Logger log = LoggerFactory.getLogger(CustomerServiceImpl.class);
+    
+    private final CustomerRepository customerRepository;
+
+    public CustomerServiceImpl(CustomerRepository customerRepository) {
+        this.customerRepository = customerRepository;
+    }
 
     @Override
     public Customer addCustomer(Customer customer) {
@@ -24,7 +30,7 @@ public class CustomerServiceImpl implements CustomerService {
 
     @Override
     public void updateStripeForAllUsers() {
-        System.out.println("Stripe update - not implemented yet");
+        log.info("Stripe update - not implemented yet");
     }
 
     @Override
