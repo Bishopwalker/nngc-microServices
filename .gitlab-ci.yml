@@ -133,7 +133,7 @@ build_api_gateway:
 build_customer_service:
   <<: *build_service
   variables:
-    SERVICE_NAME: "customerId-service"
+    SERVICE_NAME: "customer-service"
 
 build_token_service:
   <<: *build_service
@@ -170,8 +170,6 @@ build_google_service:
     - echo "🚀 Pushing Docker image to registry..."
     - docker push $DOCKER_REGISTRY/$CI_PROJECT_PATH/$SERVICE_NAME:$DOCKER_IMAGE_TAG
     - docker push $DOCKER_REGISTRY/$CI_PROJECT_PATH/$SERVICE_NAME:latest
-  dependencies:
-    - build_${SERVICE_NAME//-/_}
 
 package_service_registry:
   <<: *package_service
@@ -190,7 +188,7 @@ package_api_gateway:
 package_customer_service:
   <<: *package_service
   variables:
-    SERVICE_NAME: "customerId-service"
+    SERVICE_NAME: "customer-service"
   dependencies:
     - build_customer_service
 

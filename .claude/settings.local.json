@@ -9,7 +9,12 @@
       "Bash(docker logs:*)",
       "Bash(java:*)",
       "Bash(mvn clean:*)",
-      "Bash(mvn:*)"
+      "Bash(mvn:*)",
+      "Bash(find:*)",
+      "Bash(git add:*)",
+      "Bash(tasklist:*)",
+      "Bash(wmic process:*)",
+      "Bash(taskkill:*)"
     ],
     "deny": []
   }

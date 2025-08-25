@@ -83,6 +83,9 @@ public class Customer implements UserDetails {
     private boolean enabled = false;
 
     private boolean changePassword = false;
+    
+    @Column(name = "keycloak_user_id", length = 100)
+    private String keycloakUserId;
 
     @Enumerated(EnumType.STRING)
     private AppUserRoles appUserRoles;
@@ -93,6 +96,89 @@ public class Customer implements UserDetails {
     public Customer(String email, String password) {
         this.email = email;
         this.password = password;
+    }
+    
+    // Builder pattern
+    public static CustomerBuilder builder() {
+        return new CustomerBuilder();
+    }
+    
+    public static class CustomerBuilder {
+        private Customer customer = new Customer();
+        
+        public CustomerBuilder firstName(String firstName) {
+            customer.firstName = firstName;
+            return this;
+        }
+        
+        public CustomerBuilder lastName(String lastName) {
+            customer.lastName = lastName;
+            return this;
+        }
+        
+        public CustomerBuilder email(String email) {
+            customer.email = email;
+            return this;
+        }
+        
+        public CustomerBuilder password(String password) {
+            customer.password = password;
+            return this;
+        }
+        
+        public CustomerBuilder phone(String phone) {
+            customer.phone = phone;
+            return this;
+        }
+        
+        public CustomerBuilder houseNumber(String houseNumber) {
+            customer.houseNumber = houseNumber;
+            return this;
+        }
+        
+        public CustomerBuilder streetName(String streetName) {
+            customer.streetName = streetName;
+            return this;
+        }
+        
+        public CustomerBuilder city(String city) {
+            customer.city = city;
+            return this;
+        }
+        
+        public CustomerBuilder state(String state) {
+            customer.state = state;
+            return this;
+        }
+        
+        public CustomerBuilder zipCode(String zipCode) {
+            customer.zipCode = zipCode;
+            return this;
+        }
+        
+        public CustomerBuilder service(String service) {
+            customer.service = service;
+            return this;
+        }
+        
+        public CustomerBuilder appUserRoles(AppUserRoles appUserRoles) {
+            customer.appUserRoles = appUserRoles;
+            return this;
+        }
+        
+        public CustomerBuilder enabled(boolean enabled) {
+            customer.enabled = enabled;
+            return this;
+        }
+        
+        public CustomerBuilder keycloakUserId(String keycloakUserId) {
+            customer.keycloakUserId = keycloakUserId;
+            return this;
+        }
+        
+        public Customer build() {
+            return customer;
+        }
     }
 
     // Getters and Setters
@@ -156,6 +242,9 @@ public class Customer implements UserDetails {
 
     public boolean isChangePassword() { return changePassword; }
     public void setChangePassword(boolean changePassword) { this.changePassword = changePassword; }
+    
+    public String getKeycloakUserId() { return keycloakUserId; }
+    public void setKeycloakUserId(String keycloakUserId) { this.keycloakUserId = keycloakUserId; }
 
     public AppUserRoles getAppUserRoles() { return appUserRoles; }
     public void setAppUserRoles(AppUserRoles appUserRoles) { this.appUserRoles = appUserRoles; }
@@ -163,6 +252,9 @@ public class Customer implements UserDetails {
     // UserDetails implementation
     @Override
     public Collection<? extends GrantedAuthority> getAuthorities() {
+        if (appUserRoles == null) {
+            return Collections.emptyList();
+        }
         SimpleGrantedAuthority authority = new SimpleGrantedAuthority(appUserRoles.name());
         return Collections.singletonList(authority);
     }
@@ -189,9 +281,17 @@ public class Customer implements UserDetails {
     public CustomerRouteInfoDTO toCustomerRouteInfoDTO() {
         CustomerRouteInfoDTO dto = new CustomerRouteInfoDTO();
         dto.setId(id);
-        dto.setFullName(firstName + " " + lastName);
+        dto.setFullName((firstName != null ? firstName : "") + " " + (lastName != null ? lastName : ""));
         dto.setPhoneNumber(phone);
-        dto.setAddress(houseNumber + " " + streetName + ", " + city + " " + state + " " + zipCode);
+        
+        StringBuilder address = new StringBuilder();
+        if (houseNumber != null) address.append(houseNumber).append(" ");
+        if (streetName != null) address.append(streetName);
+        if (city != null) address.append(", ").append(city);
+        if (state != null) address.append(" ").append(state);
+        if (zipCode != null) address.append(" ").append(zipCode);
+        
+        dto.setAddress(address.toString().trim());
         dto.setLatitude(latitude);
         dto.setLongitude(longitude);
         return dto;
@@ -200,13 +300,16 @@ public class Customer implements UserDetails {
     public CustomerDTO toCustomerDTO() {
         CustomerDTO dto = new CustomerDTO();
         dto.setId(id);
-        dto.setFullName(firstName + " " + lastName);
+        dto.setFullName((firstName != null ? firstName : "") + " " + (lastName != null ? lastName : ""));
         dto.setEmail(email);
         dto.setPhoneNumber(phone);
         
         // Create address DTO
         AddressDTO addressDTO = new AddressDTO();
-        addressDTO.setLine1(houseNumber + " " + streetName);
+        String line1 = "";
+        if (houseNumber != null) line1 += houseNumber + " ";
+        if (streetName != null) line1 += streetName;
+        addressDTO.setLine1(line1.trim());
         addressDTO.setCity(city);
         addressDTO.setState(state);
         addressDTO.setZipCode(zipCode);

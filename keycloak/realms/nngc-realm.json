@@ -1,0 +1,95 @@
+{
+  "realm": "nngc-realm",
+  "enabled": true,
+  "displayName": "NNGC Microservices Realm",
+  "accessTokenLifespan": 300,
+  "refreshTokenMaxReuse": 0,
+  "offlineSessionIdleTimeout": 2592000,
+  "clients": [
+    {
+      "clientId": "api-gateway",
+      "enabled": true,
+      "clientAuthenticatorType": "client-secret",
+      "secret": "api-gateway-secret",
+      "standardFlowEnabled": true,
+      "serviceAccountsEnabled": true,
+      "publicClient": false,
+      "protocol": "openid-connect",
+      "attributes": {
+        "client.secret.creation.time": "1640995200"
+      }
+    },
+    {
+      "clientId": "customer-service",
+      "enabled": true,
+      "clientAuthenticatorType": "client-secret",
+      "secret": "customer-service-secret",
+      "standardFlowEnabled": true,
+      "serviceAccountsEnabled": true,
+      "publicClient": false,
+      "protocol": "openid-connect",
+      "attributes": {
+        "client.secret.creation.time": "1640995200"
+      }
+    },
+    {
+      "clientId": "token-service",
+      "enabled": true,
+      "clientAuthenticatorType": "client-secret",
+      "secret": "token-service-secret",
+      "standardFlowEnabled": true,
+      "serviceAccountsEnabled": true,
+      "publicClient": false,
+      "protocol": "openid-connect",
+      "attributes": {
+        "client.secret.creation.time": "1640995200"
+      }
+    },
+    {
+      "clientId": "service-registry",
+      "enabled": true,
+      "clientAuthenticatorType": "client-secret",
+      "secret": "service-registry-secret",
+      "standardFlowEnabled": true,
+      "serviceAccountsEnabled": true,
+      "publicClient": false,
+      "protocol": "openid-connect",
+      "attributes": {
+        "client.secret.creation.time": "1640995200"
+      }
+    }
+  ],
+  "roles": {
+    "realm": [
+      {
+        "name": "ADMIN",
+        "description": "Administrator role"
+      },
+      {
+        "name": "USER",
+        "description": "Regular user role"
+      },
+      {
+        "name": "SERVICE",
+        "description": "Service-to-service communication role"
+      }
+    ]
+  },
+  "users": [
+    {
+      "username": "admin",
+      "enabled": true,
+      "credentials": [
+        {
+          "type": "password",
+          "value": "admin123",
+          "temporary": false
+        }
+      ],
+      "realmRoles": ["ADMIN"],
+      "email": "admin@nngc.com",
+      "firstName": "Admin",
+      "lastName": "User"
+    }
+  ]
+}

@@ -1,0 +1,158 @@
+services:
+  # Service Registry (Eureka Server)
+  service-registry:
+    image: ${DOCKER_REGISTRY}/${CI_PROJECT_PATH}/service-registry:latest
+    container_name: staging-service-registry
+    ports:
+      - "8761:8761"
+    environment:
+      - SPRING_PROFILES_ACTIVE=staging
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8761/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 40s
+    networks:
+      - nngc-staging-network
+
+  # API Gateway
+  api-gateway:
+    image: ${DOCKER_REGISTRY}/${CI_PROJECT_PATH}/api-gateway:latest
+    container_name: staging-gateway
+    ports:
+      - "8080:8080"
+    environment:
+      - SPRING_PROFILES_ACTIVE=staging
+      - EUREKA_CLIENT_SERVICE_URL_DEFAULTZONE=http://service-registry:8761/eureka/
+    depends_on:
+      service-registry:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 40s
+    networks:
+      - nngc-staging-network
+
+  # Customer Service
+  customer-service:
+    image: ${DOCKER_REGISTRY}/${CI_PROJECT_PATH}/customer-service:latest
+    container_name: staging-customer-service
+    ports:
+      - "8081:8081"
+    environment:
+      - SPRING_PROFILES_ACTIVE=staging
+      - EUREKA_CLIENT_SERVICE_URL_DEFAULTZONE=http://service-registry:8761/eureka/
+      - SERVER_PORT=8081
+      - JWT_SECRET_KEY=${JWT_SECRET_KEY}
+    depends_on:
+      service-registry:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8081/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 40s
+    networks:
+      - nngc-staging-network
+
+  # Token Service
+  token-service:
+    image: ${DOCKER_REGISTRY}/${CI_PROJECT_PATH}/token-service:latest
+    container_name: staging-token-service
+    ports:
+      - "8082:8082"
+    environment:
+      - SPRING_PROFILES_ACTIVE=staging
+      - EUREKA_CLIENT_SERVICE_URL_DEFAULTZONE=http://service-registry:8761/eureka/
+      - SERVER_PORT=8082
+    depends_on:
+      service-registry:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8082/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 40s
+    networks:
+      - nngc-staging-network
+
+  # Stripe Service
+  stripe-service:
+    image: ${DOCKER_REGISTRY}/${CI_PROJECT_PATH}/stripe-service:latest
+    container_name: staging-stripe-service
+    ports:
+      - "8083:8083"
+    environment:
+      - SPRING_PROFILES_ACTIVE=staging
+      - EUREKA_CLIENT_SERVICE_URL_DEFAULTZONE=http://service-registry:8761/eureka/
+      - SERVER_PORT=8083
+    depends_on:
+      service-registry:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8083/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 40s
+    networks:
+      - nngc-staging-network
+
+  # Email Service
+  email-service:
+    image: ${DOCKER_REGISTRY}/${CI_PROJECT_PATH}/email-service:latest
+    container_name: staging-email-service
+    ports:
+      - "8084:8084"
+    environment:
+      - SPRING_PROFILES_ACTIVE=staging
+      - EUREKA_CLIENT_SERVICE_URL_DEFAULTZONE=http://service-registry:8761/eureka/
+      - SERVER_PORT=8084
+    depends_on:
+      service-registry:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8084/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 40s
+    networks:
+      - nngc-staging-network
+
+  # Google Service
+  google:
+    image: ${DOCKER_REGISTRY}/${CI_PROJECT_PATH}/google:latest
+    container_name: staging-google-service
+    ports:
+      - "8085:8085"
+    environment:
+      - SPRING_PROFILES_ACTIVE=staging
+      - EUREKA_CLIENT_SERVICE_URL_DEFAULTZONE=http://service-registry:8761/eureka/
+      - SERVER_PORT=8085
+    depends_on:
+      service-registry:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8085/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 40s
+    networks:
+      - nngc-staging-network
+
+networks:
+  nngc-staging-network:
+    driver: bridge
+    name: nngc-staging-network
+
+volumes:
+  nngc-staging-data:
+    driver: local

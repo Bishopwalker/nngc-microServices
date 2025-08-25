@@ -1,14 +1,9 @@
 package org.nngc.token;
 
-import com.northernneckgarbage.nngc.dbConfig.ApiResponse;
-import com.northernneckgarbage.nngc.entity.Customer;
-import com.northernneckgarbage.nngc.registration.auth.AuthenticationRequest;
-import com.northernneckgarbage.nngc.repository.CustomerRepository;
-import com.northernneckgarbage.nngc.security.JwtService;
+import org.nngc.dto.CustomerDTO;
+import org.nngc.client.CustomerServiceClient;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.security.authentication.AuthenticationManager;
-import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
@@ -18,57 +13,24 @@ import java.time.LocalDateTime;
 @RequiredArgsConstructor
 public class TokenService {
 
-    private final CustomerRepository customerRepository;
     private final TokenRepository tokenRepository;
-    private final JwtService jwtService;
-    private final AuthenticationManager authenticationManager;
-
-    public ApiResponse authenticate(AuthenticationRequest request){
-        var user = customerRepository.findByEmail(request.getEmail())
-                .orElseThrow();
+    private final CustomerServiceClient customerServiceClient;
 
 
-        authenticationManager.authenticate(
-                new UsernamePasswordAuthenticationToken(
-                        request.getEmail(),
-                        request.getPassword()
-                )
-        );
 
-        var jwtToken = jwtService.generateToken(user);
-        revokeAllUserTokens(user);
-        saveUserToken(user, jwtToken);
-        return ApiResponse.builder()
-                .token(jwtToken)
-                .customerDTO(user.toCustomerDTO())
-//                .customerId(user)
-                .build();
-    }
-
-
-    public void saveUserToken(Long userId, String jwtToken) {
+    public String generateEmailVerificationToken(Long customerId) {
+        var verificationToken = java.util.UUID.randomUUID().toString();
         var token = Token.builder()
-                .customerId(user)
-                .token(jwtToken)
-                .tokenType(TokenType.BEARER)
+                .customerId(customerId)
+                .token(verificationToken)
+                .tokenType(TokenType.EMAIL_VERIFICATION)
                 .expired(false)
                 .createdAt(LocalDateTime.now())
                 .expiresAt(LocalDateTime.now().plusMinutes(45))
                 .revoked(false)
                 .build();
         tokenRepository.save(token);
-    }
-
-    public void revokeAllUserTokens(Customer user) {
-        var validUserTokens = tokenRepository.findAllValidTokenByUser((int) user.getId());
-        if (validUserTokens.isEmpty())
-            return;
-        validUserTokens.forEach(token -> {
-            token.setExpired(true);
-            token.setRevoked(true);
-            token.setExpiresAt(LocalDateTime.now());
-        });
-        tokenRepository.saveAll(validUserTokens);
+        return verificationToken;
     }
 
 
@@ -76,31 +38,24 @@ public class TokenService {
 
 
 
-    public ApiResponse confirmToken(String token) {
+
+    public CustomerDTO confirmEmailVerificationToken(String token) {
         var userToken = tokenRepository.findByToken(token)
                 .orElseThrow(() -> new RuntimeException("Token not found"));
-  //findByID
-        var person = customerRepository.findById(userToken.getCustomerId().getId())
-                .orElseThrow(() -> new RuntimeException("Person not found"));
-        if(!person.isEnabled()) {
-            person.setEnabled(true);
-            customerRepository.save(person);
-        }
-        log.warn("Token found: "+userToken);
-        log.warn("Person found: "+person);
-
+        
         if (userToken.getConfirmedAt() != null)
             throw new RuntimeException("Token already confirmed");
         if(LocalDateTime.now().isAfter(userToken.getExpiresAt()))
             throw new RuntimeException("Token expired");
 
+        // Call customer service to enable the user
+        var customer = customerServiceClient.enableCustomer(userToken.getCustomerId());
+        
         userToken.setConfirmedAt(LocalDateTime.now());
-        userToken.setExpiresAt(LocalDateTime.now().plusMinutes(15));
         tokenRepository.save(userToken);
-        return ApiResponse.builder()
-                .token(token)
-                .customerDTO(person.toCustomerDTO())
-               // .customerId(person)
-                .build();
+        
+        log.info("Email verification completed for customer: {}", userToken.getCustomerId());
+        
+        return customer;
     }
 }

@@ -26,6 +26,19 @@ public class CustomerServiceClient {
             throw new RuntimeException("Failed to fetch customer with ID: " + customerId, e);
         }
     }
+
+    public CustomerDTO enableCustomer(Long customerId) {
+        try {
+            return webClient.put()
+                    .uri("http://customer-service/customer/{id}/enable", customerId)
+                    .retrieve()
+                    .bodyToMono(CustomerDTO.class)
+                    .block();
+        } catch (WebClientResponseException e) {
+            log.error("Error enabling customer with ID: {}, Error: {}", customerId, e.getMessage());
+            throw new RuntimeException("Failed to enable customer with ID: " + customerId, e);
+        }
+    }
 }
 
 

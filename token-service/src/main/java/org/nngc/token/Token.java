@@ -1,6 +1,5 @@
 package org.nngc.token;
 
-import org.nngc.entity.Customer;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -29,7 +28,8 @@ public class Token {
     public String token;
 
     @Enumerated(EnumType.STRING)
-    public TokenType tokenType = TokenType.BEARER;
+    @Builder.Default
+    public TokenType tokenType = TokenType.EMAIL_VERIFICATION;
 
     public boolean revoked;
 
@@ -39,7 +39,6 @@ public class Token {
 
     private LocalDateTime confirmedAt;
 
-    @ManyToOne
-    @JoinColumn(name = "customer_id")
+    @Column(name = "customer_id")
     public Long customerId;
 }

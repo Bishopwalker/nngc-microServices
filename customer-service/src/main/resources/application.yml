@@ -52,3 +52,18 @@ eureka:
         register-with-eureka: true
     instance:
         prefer-ip-address: true
+
+# Keycloak Configuration
+keycloak:
+    auth-server-url: http://localhost:8080
+    realm: nngc-realm
+    admin:
+        client-id: admin-cli
+        username: admin
+        password: admin
+
+# Application Configuration
+application:
+    base-url: https://api.northernneckgarbage.com
+    frontend-url: http://localhost:5173
+    production-frontend-url: https://northernneckgarbage.com
