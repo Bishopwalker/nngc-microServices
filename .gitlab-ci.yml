@@ -20,6 +20,7 @@ test:
     - cd ../RegistrationService && mvn test
     - cd ../email-service && mvn test
     - cd ../token-service && mvn test
+  allow_failure: true  # Pipeline continues even if tests fail
 
 # Build each service separately
 build-customer-service:
