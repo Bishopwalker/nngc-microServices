@@ -9,6 +9,7 @@ import org.keycloak.admin.client.resource.UsersResource;
 import org.keycloak.representations.idm.CredentialRepresentation;
 import org.keycloak.representations.idm.RoleRepresentation;
 import org.keycloak.representations.idm.UserRepresentation;
+import org.nngc.exception.KeycloakException;
 import org.nngc.response.RegistrationRequest;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -111,11 +112,11 @@ public class KeycloakService {
             } else {
                 logger.error("Failed to create user in Keycloak. Status: {}", response.getStatus());
                 response.close();
-                throw new RuntimeException("Failed to create user in Keycloak");
+                throw new KeycloakException("Failed to create user in Keycloak");
             }
         } catch (Exception e) {
             logger.error("Error creating user in Keycloak: ", e);
-            throw new RuntimeException("Failed to create user in Keycloak: " + e.getMessage());
+            throw new KeycloakException("Failed to create user in Keycloak: " + e.getMessage(), e);
         }
     }
     
@@ -137,7 +138,7 @@ public class KeycloakService {
             }
         } catch (Exception e) {
             logger.error("Error enabling user in Keycloak: ", e);
-            throw new RuntimeException("Failed to enable user in Keycloak: " + e.getMessage());
+            throw new KeycloakException("Failed to enable user in Keycloak: " + e.getMessage(), e);
         }
     }
     
@@ -171,7 +172,7 @@ public class KeycloakService {
             }
         } catch (Exception e) {
             logger.error("Error deleting user from Keycloak: ", e);
-            throw new RuntimeException("Failed to delete user from Keycloak: " + e.getMessage());
+            throw new KeycloakException("Failed to delete user from Keycloak: " + e.getMessage(), e);
         }
     }
     
