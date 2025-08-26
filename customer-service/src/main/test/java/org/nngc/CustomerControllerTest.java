@@ -1,4 +1,4 @@
-package main.test;
+package org.nngc;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeAll;
@@ -6,33 +6,28 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.nngc.controller.CustomerController;
 import org.nngc.entity.Customer;
-import org.nngc.token.Token;
-import org.nngc.token.TokenType;
-import org.nngc.repository.TokenRepository;
+import org.nngc.entity.controller.CustomerController;
 import org.nngc.response.ApiResponse;
 import org.nngc.roles.AppUserRoles;
-import org.nngc.service.impl.CustomerService;
+import org.nngc.service.CustomerService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.request.MockMvcRequestBuilders;
+import org.springframework.test.web.servlet.result.MockMvcResultMatchers;
 
 import java.util.Arrays;
 import java.util.List;
-import java.util.Optional;
 
-import static org.mockito.ArgumentMatchers.*;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.reset;
 import static org.mockito.Mockito.when;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
- @ExtendWith(MockitoExtension.class)
+@ExtendWith(MockitoExtension.class)
 @WebMvcTest(CustomerController.class)
 class CustomerControllerTest {
 
@@ -45,17 +40,12 @@ class CustomerControllerTest {
     @MockBean
     private CustomerService customerService;
 
-    @MockBean
-    private TokenRepository tokenRepository;
 
     // Static test data - created once and reused
     private static Customer testCustomer;
     private static Customer testAdminCustomer;
     private static Customer testBusinessCustomer;
-    private static Token testToken;
-    private static Token testAdminToken;
-    private static Token testBusinessToken;
-    private static List<Customer> testCustomerList;
+ static List<Customer> testCustomerList;
 
     @BeforeAll
     static void setUpTestData() {
@@ -64,10 +54,7 @@ class CustomerControllerTest {
         testAdminCustomer = createTestCustomer(2L, "admin@example.com", AppUserRoles.ADMIN);
         testBusinessCustomer = createTestCustomer(3L, "business@example.com", AppUserRoles.BUSINESS);
 
-        // Create tokens for authorization testing
-        testToken = createTestToken("test-token-123", testCustomer);
-        testAdminToken = createTestToken("admin-token-456", testAdminCustomer);
-        testBusinessToken = createTestToken("business-token-789", testBusinessCustomer);
+
 
         // Create a list of customers for bulk operations
         testCustomerList = Arrays.asList(testCustomer, testAdminCustomer, testBusinessCustomer);
@@ -76,19 +63,16 @@ class CustomerControllerTest {
     @BeforeEach
     void setUp() {
         // Reset mocks before each test (clears previous interactions)
-        reset(customerService, tokenRepository);
+        reset(customerService);
 
         // Set up common mock behaviors for each test
-        setupCommonMocks();
     }
-
     /**
      * Creates a test customerId with the specified parameters
      */
     private static Customer createTestCustomer(Long id, String email, AppUserRoles role) {
         return Customer.builder()
-                .id(id)
-                .firstName("John")
+                 .firstName("John")
                 .lastName("Doe")
                 .email(email)
                 .password("$2a$10$encodedPassword")
@@ -98,16 +82,8 @@ class CustomerControllerTest {
                 .city("Richmond")
                 .state("VA")
                 .zipCode("23230")
-                .county("Henrico")
-                .latitude(37.5407 + id * 0.001) // Slight variation for each customerId
-                .longitude(-77.4360 + id * 0.001)
-                .geoLocation((37.5407 + id * 0.001) + "," + (-77.4360 + id * 0.001))
                 .service("Weekly Pickup")
-                .stripeCustomerId("cus_test" + id)
-                .receiptURL("https://example.com/receipt/" + id)
-                .invoiceURL("https://example.com/invoice/" + id)
                 .enabled(true)
-                .changePassword(false)
                 .appUserRoles(role)
                 .build();
     }
@@ -115,42 +91,18 @@ class CustomerControllerTest {
     /**
      * Creates a test token for authorization
      */
-    private static Token createTestToken(String tokenValue, Customer customer) {
-        return Token.builder()
-                .token(tokenValue)
-                .tokenType(TokenType.BEARER)
-                .customer(customer)
-                .expired(false)
-                .revoked(false)
-                .build();
-    }
-
-    /**
-     * Sets up common mock behaviors used across multiple tests
-     */
-    private void setupCommonMocks() {
-        // Mock token repository responses
-        when(tokenRepository.findByToken("test-token-123"))
-                .thenReturn(Optional.of(testToken));
-        when(tokenRepository.findByToken("admin-token-456"))
-                .thenReturn(Optional.of(testAdminToken));
-        when(tokenRepository.findByToken("business-token-789"))
-                .thenReturn(Optional.of(testBusinessToken));
-        when(tokenRepository.findByToken(anyString()))
-                .thenReturn(Optional.empty());
-    }
 
     // Test methods using the shared customerId data
 
     @Test
     void testGetCustomerById_AsAdmin_ShouldReturnCustomer() throws Exception {
         // Arrange
-        ApiResponse<Customer> expectedResponse = ApiResponse.<Customer>builder()
+        ApiResponse expectedResponse = ApiResponse.<Customer>builder()
                 .message("Customer found")
                 .customerDTO(testCustomer.toCustomerDTO())
                 .build();
 
-        when(customerService.getCustomerById(1L)).thenReturn(expectedResponse);
+        when(customerService.getCustomerById(1L)).thenReturn(expectedResponse.getCustomerDTO());
 
         // Act & Assert
         mockMvc.perform(MockMvcRequestBuilders.get("/customerId/customers/1")
@@ -163,12 +115,11 @@ class CustomerControllerTest {
     @Test
     void testGetAllCustomers_AsAdmin_ShouldReturnCustomerList() throws Exception {
         // Arrange
-        ApiResponse<List<Customer>> expectedResponse = ApiResponse.<List<Customer>>builder()
+        ApiResponse expectedResponse = ApiResponse.<List<Customer>>builder()
                 .message("Customers retrieved successfully")
-                .customers(testCustomerList)
                 .build();
 
-        when(customerService.getCustomers()).thenReturn(expectedResponse);
+        when(customerService.getCustomers()).thenReturn((List<Customer>) expectedResponse);
 
         // Act & Assert
         mockMvc.perform(MockMvcRequestBuilders.get("/customerId/customers")
@@ -180,13 +131,13 @@ class CustomerControllerTest {
     @Test
     void testUpdateCustomer_AsOwner_ShouldUpdateSuccessfully() throws Exception {
         // Arrange
-        ApiResponse<Customer> expectedResponse = ApiResponse.<Customer>builder()
+        ApiResponse expectedResponse = ApiResponse.<Customer>builder()
                 .message("Customer updated successfully")
                 .customerDTO(testCustomer.toCustomerDTO())
                 .build();
 
         when(customerService.updateCustomer(any(Customer.class), eq(1L)))
-                .thenReturn(expectedResponse);
+                .thenReturn(expectedResponse.getCustomerDTO());
 
         // Act & Assert
         mockMvc.perform(MockMvcRequestBuilders.put("/customerId/customers/1")
@@ -204,7 +155,6 @@ class CustomerControllerTest {
      */
     public static Customer createCustomerCopy(Customer original) {
         return Customer.builder()
-                .id(original.getId())
                 .firstName(original.getFirstName())
                 .lastName(original.getLastName())
                 .email(original.getEmail())
@@ -215,16 +165,8 @@ class CustomerControllerTest {
                 .city(original.getCity())
                 .state(original.getState())
                 .zipCode(original.getZipCode())
-                .county(original.getCounty())
-                .latitude(original.getLatitude())
-                .longitude(original.getLongitude())
-                .geoLocation(original.getGeoLocation())
                 .service(original.getService())
-                .stripeCustomerId(original.getStripeCustomerId())
-                .receiptURL(original.getReceiptURL())
-                .invoiceURL(original.getInvoiceURL())
                 .enabled(original.isEnabled())
-                .changePassword(original.isChangePassword())
                 .appUserRoles(original.getAppUserRoles())
                 .build();
     }

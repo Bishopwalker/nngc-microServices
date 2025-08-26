@@ -65,11 +65,11 @@ services:
     image: ${DOCKER_REGISTRY}/${CI_PROJECT_PATH}/token-service:latest
     container_name: staging-token-service
     ports:
-      - "8082:8082"
+      - "8083:8083"
     environment:
       - SPRING_PROFILES_ACTIVE=staging
       - EUREKA_CLIENT_SERVICE_URL_DEFAULTZONE=http://service-registry:8761/eureka/
-      - SERVER_PORT=8082
+      - SERVER_PORT=8083
     depends_on:
       service-registry:
         condition: service_healthy
@@ -87,11 +87,11 @@ services:
     image: ${DOCKER_REGISTRY}/${CI_PROJECT_PATH}/stripe-service:latest
     container_name: staging-stripe-service
     ports:
-      - "8083:8083"
+      - "8086:8086"
     environment:
       - SPRING_PROFILES_ACTIVE=staging
       - EUREKA_CLIENT_SERVICE_URL_DEFAULTZONE=http://service-registry:8761/eureka/
-      - SERVER_PORT=8083
+      - SERVER_PORT=8086
     depends_on:
       service-registry:
         condition: service_healthy
@@ -131,11 +131,11 @@ services:
     image: ${DOCKER_REGISTRY}/${CI_PROJECT_PATH}/google:latest
     container_name: staging-google-service
     ports:
-      - "8085:8085"
+      - "8087:8087"
     environment:
       - SPRING_PROFILES_ACTIVE=staging
       - EUREKA_CLIENT_SERVICE_URL_DEFAULTZONE=http://service-registry:8761/eureka/
-      - SERVER_PORT=8085
+      - SERVER_PORT=8087
     depends_on:
       service-registry:
         condition: service_healthy
@@ -155,11 +155,11 @@ services:
     image: ${DOCKER_REGISTRY}/${CI_PROJECT_PATH}/registration-service:latest
     container_name: staging-registration-service
     ports:
-      - "8086:8086"
+      - "8085:8085"
     environment:
       - SPRING_PROFILES_ACTIVE=staging
       - EUREKA_CLIENT_SERVICE_URL_DEFAULTZONE=http://service-registry:8761/eureka/
-      - SERVER_PORT=8086
+      - SERVER_PORT=8085
     depends_on:
       service-registry:
         condition: service_healthy

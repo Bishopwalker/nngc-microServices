@@ -1,7 +1,7 @@
 @echo off
 echo Setting up environment variables...
 call setup-env.bat
-echo.
+
 
 echo Killing existing Java processes...
 taskkill /f /im java.exe >nul 2>&1

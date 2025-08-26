@@ -36,7 +36,7 @@
         <module>token-service</module>
         <module>stripe-service</module>
         <module>email-service</module>
-        <module>google</module>
+        <module>google-service</module>
     </modules>
 
     <parent>
@@ -104,6 +104,10 @@
             <groupId>org.springframework.security</groupId>
             <artifactId>spring-security-test</artifactId>
             <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.cloud</groupId>
+            <artifactId>spring-cloud-commons</artifactId>
         </dependency>
     </dependencies>
 

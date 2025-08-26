@@ -8,6 +8,10 @@ This setup integrates Keycloak as the identity and access management solution fo
 - **Service Registry**: Secured Eureka server
 - **Customer Service**: Protected microservice with secure WebClient
 - **Token Service**: JWT token management with secure service calls
+- **Email Service**: Secure WebClient for sending emails
+- **Registration Service**: Secure WebClient for user registration
+- **Google Service**: Secure WebClient for Google OAuth2 authentication
+- **Stripe Service**: Secure WebClient for Stripe OAuth2 authentication
 
 ## Prerequisites
 - Docker and Docker Compose
@@ -49,6 +53,24 @@ spring.security.oauth2.client.registration.keycloak.client-secret: token-service
 spring.security.oauth2.client.registration.keycloak.client-secret=service-registry-secret
 ```
 
+**Registration Service** (`registration-service/src/main/resources/application.properties`)
+```properties
+spring.security.oauth2.client.registration.keycloak.client-secret=registration-service-secret
+```
+**Google Service** (`google-service/src/main/resources/application.properties`)
+```properties
+spring.security.oauth2.client.registration.keycloak.client-secret=registration-service-secret
+```
+**Email Service**  (`email-service/src/main/resources/application.properties`)
+```properties
+spring.security.oauth2.client.registration.keycloak.client-secret=registration-service-secret
+```
+**Stripe Service**  (`stripe-service/src/main/resources/application.properties`)
+```properties
+spring.security.oauth2.client.registration.keycloak.client-secret=registration-service-secret
+```
+
+
 ### 4. Start Services in Order
 ```bash
 # 1. Service Registry
@@ -87,7 +109,7 @@ mvn spring-boot:run
 
 ## Service Ports
 - **Keycloak**: 8080
-- - **Customer Service**: 8082
+- - **Customer Service**: 8081
 - **Token Service**: 8083
 - **Email Service**: 8084
 - **Registration Service**: 8085

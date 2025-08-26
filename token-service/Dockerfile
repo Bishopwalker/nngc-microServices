@@ -4,5 +4,5 @@ WORKDIR /app
 
 COPY target/*.jar token-service.jar
 
-EXPOSE 8082
+EXPOSE 8083
 ENTRYPOINT ["java", "-jar", "token-service.jar"]
