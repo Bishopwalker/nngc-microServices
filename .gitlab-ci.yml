@@ -36,7 +36,7 @@ test:
   script:
     - echo "Running tests for all microservices..."
     - |
-      for service in customer-service api-gateway service-registry RegistrationService email-service token-service; do
+      for service in customer-service api-gateway service-registry registration-service email-service token-service; do
         echo "Testing $service..."
         cd $service
         mvn test || true  # Continue even if tests fail
@@ -58,7 +58,7 @@ package:
   script:
     - echo "Creating JAR packages..."
     - |
-      for service in customer-service api-gateway service-registry RegistrationService email-service token-service; do
+      for service in customer-service api-gateway service-registry registration-service email-service token-service; do
         echo "Packaging $service..."
         cd $service
         mvn package -DskipTests

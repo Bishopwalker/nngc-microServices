@@ -4,6 +4,22 @@ server:
 spring:
   application:
     name: email-service
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          jwk-set-uri: http://localhost:8080/realms/nngc-realm/protocol/openid-connect/certs
+          issuer-uri: http://localhost:8080/realms/nngc-realm
+      client:
+        registration:
+          keycloak:
+            client-id: email-service
+            client-secret: your-email-service-secret
+            authorization-grant-type: client_credentials
+            scope: openid,profile
+        provider:
+          keycloak:
+            issuer-uri: http://localhost:8080/realms/nngc-realm
 
 eureka:
   client:
@@ -17,6 +33,15 @@ eureka:
 # SendGrid Configuration
 sendgrid:
   api-key: ${SENDGRID_API_KEY:your-sendgrid-api-key}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      show-details: always
 
 logging:
   level:
