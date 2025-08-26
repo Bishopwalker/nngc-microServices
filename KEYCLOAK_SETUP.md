@@ -82,7 +82,7 @@ cd ../api-gateway
 mvn spring-boot:run
 
 # 3. Customer Service
-cd ../customer-service
+cd ../customer-[.env](.env)service
 mvn spring-boot:run
 
 # 4. Token Service
@@ -109,7 +109,7 @@ mvn spring-boot:run
 
 ## Service Ports
 - **Keycloak**: 8080
-- - **Customer Service**: 8081
+- **Customer Service**: 8081
 - **Token Service**: 8083
 - **Email Service**: 8084
 - **Registration Service**: 8085

@@ -9,21 +9,21 @@ echo.
 echo [1/8] Starting Keycloak...
 docker-compose -f docker-compose-keycloak.yml up -d
 echo Waiting for Keycloak to start...
-timeout /t 30 >nul
+timeout /t 10 >nul
 
 echo.
 echo [2/8] Starting Service Registry...
 cd service-registry
 start /min cmd /c "mvn spring-boot:run"
 cd ..
-timeout /t 15 >nul
+timeout /t 10 >nul
 
 echo.
 echo [3/8] Starting API Gateway...
 cd api-gateway
 start /min cmd /c "mvn spring-boot:run"
 echo.
-timeout /t 30 >nul
+timeout /t 10 >nul
 
 echo [4/8] Starting Email Service...
 cd email-service
@@ -36,15 +36,13 @@ cd token-service
 start /min cmd /c "mvn spring-boot:run"
 cd ..
 
-timeout /t 20 >nul
-
 echo.
 echo [6/8] Starting Customer Service...
 cd customer-service
 start /min cmd /c "mvn spring-boot:run"
 cd ..
 
-timeout /t 15 >nul
+timeout /t 5 >nul
 
 echo.
 echo [7/6] Starting Registration Service...
@@ -52,7 +50,7 @@ cd registration-service
 start /min cmd /c "mvn spring-boot:run"
 cd ..
 
-timeout /t 15 >nul
+timeout /t 5 >nul
 
 echo.
 echo [8/8] Starting Stripe Service
@@ -60,19 +58,17 @@ cd stripe-service
 start /min cmd /c "mvn spring-boot:run"
 cd ..
 
-timeout /t 15 >nul
-
 echo.
 echo [9/9] Starting Google Service
-cd google
+cd google-service
 start /min cmd /c "mvn spring-boot:run"
 cd ..
 
-timeout /t 15 >nul
+timeout /t 3 >nul
 
 echo.
 echo ========================================
-echo All services are starting...
+echo All services are starting...WSL
 echo ========================================
 echo Keycloak Admin:     http://localhost:8080 (admin/admin)
 echo Service Registry:   http://localhost:8761

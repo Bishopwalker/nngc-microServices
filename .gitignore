@@ -38,3 +38,34 @@ build/
 .DS_Store
 
 **.env
+
+# Log files
+*.log
+logs/
+*/logs/
+
+# Application specific
+application-dev.properties
+application-prod.properties
+**/application-dev.properties
+**/application-prod.properties
+
+# Temporary bat files (keep only start-all.bat and stop-all.bat)
+env-*.bat
+run-*.bat
+start-*-debug.bat
+start-*-service.bat
+start-customer-*.bat
+start-registration-*.bat
+start-services.bat
+start-all-clean.bat
+test-*.bat
+set-*.bat
+setup-*.bat
+skip-*.bat
+clean-*.bat
+
+# Misc
+nul
+*.tmp
+.claude/

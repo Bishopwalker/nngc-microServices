@@ -22,7 +22,9 @@
       "Read(/C:\\mnt\\c\\Users\\bisho\\IdeaProjects/**)",
       "Bash(cmd.exe /c start-all.bat)",
       "Bash(cmd.exe:*)",
-      "Bash(git commit:*)"
+      "Bash(git commit:*)",
+      "Bash(cmd /c:*)",
+      "Bash(start:*)"
     ],
     "deny": []
   }
