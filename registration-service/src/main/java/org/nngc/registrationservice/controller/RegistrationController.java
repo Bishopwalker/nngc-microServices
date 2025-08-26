@@ -1,8 +1,11 @@
-package org.nngc.registrationservice;
+package org.nngc.registrationservice.controller;
 
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.nngc.registrationservice.registration.ApiResponse;
+import org.nngc.registrationservice.registration.RegistrationRequest;
+import org.nngc.registrationservice.registration.RegistrationService;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;

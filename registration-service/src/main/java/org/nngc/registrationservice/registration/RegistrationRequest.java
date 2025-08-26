@@ -1,4 +1,4 @@
-package org.nngc.registrationservice;
+package org.nngc.registrationservice.registration;
 
 import java.util.Objects;
 

@@ -1,5 +1,6 @@
-package org.nngc.registrationservice;
+package org.nngc.registrationservice.client;
 
+import org.nngc.registrationservice.registration.ApiResponse;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;

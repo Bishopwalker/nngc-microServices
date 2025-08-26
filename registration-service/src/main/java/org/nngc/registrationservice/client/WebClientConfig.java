@@ -1,4 +1,4 @@
-package org.nngc.registrationservice;
+package org.nngc.registrationservice.client;
 
 import org.springframework.cloud.client.loadbalancer.LoadBalanced;
 import org.springframework.context.annotation.Bean;

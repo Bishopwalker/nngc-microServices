@@ -1,4 +1,4 @@
-package org.nngc.registrationservice;
+package org.nngc.registrationservice.security;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;

@@ -1,7 +1,8 @@
-package org.nngc.registrationservice;
+package org.nngc.registrationservice.registration;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.nngc.registrationservice.client.CustomerServiceClient;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Mono;
