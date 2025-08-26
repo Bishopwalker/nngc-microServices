@@ -18,7 +18,7 @@ build:
   script:
     - echo "Building all microservices..."
     - |
-      for service in customer-service api-gateway service-registry RegistrationService email-service token-service; do
+      for service in customer-service api-gateway service-registry registration-service email-service token-service; do
         echo "Building $service..."
         cd $service
         mvn clean compile
@@ -76,7 +76,7 @@ validate-mr:
   script:
     - echo "Quick validation check..."
     - |
-      for service in customer-service api-gateway service-registry RegistrationService email-service token-service; do
+      for service in customer-service api-gateway service-registry registration-service email-service token-service; do
         cd $service
         mvn validate compile
         cd ..
