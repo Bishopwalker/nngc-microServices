@@ -2,13 +2,13 @@ package org.nngc.service.impl;
 
 import org.nngc.dto.CustomerDTO;
 import org.nngc.entity.Customer;
+import org.nngc.exception.CustomerNotFoundException;
 import org.nngc.repository.CustomerRepository;
 import org.nngc.response.ApiResponse;
 import org.nngc.roles.AppUserRoles;
 import org.nngc.service.CustomerService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import jakarta.transaction.Transactional;
@@ -25,12 +25,11 @@ public class CustomerServiceImpl implements CustomerService {
     private static final Logger log = LoggerFactory.getLogger(CustomerServiceImpl.class);
     
     private final CustomerRepository customerRepository;
-    
-    @Autowired
-    private PasswordEncoder passwordEncoder;
+    private final PasswordEncoder passwordEncoder;
 
-    public CustomerServiceImpl(CustomerRepository customerRepository) {
+    public CustomerServiceImpl(CustomerRepository customerRepository, PasswordEncoder passwordEncoder) {
         this.customerRepository = customerRepository;
+        this.passwordEncoder = passwordEncoder;
     }
 
     @Override
@@ -127,7 +126,7 @@ public class CustomerServiceImpl implements CustomerService {
     @Override
     public CustomerDTO updateCustomer(Customer customer, Long id) {
         var existingCustomer = customerRepository.findById(id).orElseThrow(() ->
-                new RuntimeException("Customer not found"));
+                new CustomerNotFoundException("Customer not found with ID: " + id));
         
         // Update fields
         if (customer.getFirstName() != null) existingCustomer.setFirstName(customer.getFirstName());
@@ -142,7 +141,7 @@ public class CustomerServiceImpl implements CustomerService {
     @Override
     public CustomerDTO updateCustomer(Customer customer, String email) {
         var existingCustomer = customerRepository.findByEmail(email).orElseThrow(() ->
-                new RuntimeException("Customer not found"));
+                new CustomerNotFoundException("Customer not found with email: " + email));
         
         // Update password if provided
         if (customer.getPassword() != null) {
@@ -156,14 +155,14 @@ public class CustomerServiceImpl implements CustomerService {
     @Override
     public CustomerDTO getCustomerById(Long id) {
         var customer = customerRepository.findById(id).orElseThrow(() ->
-                new RuntimeException("Customer not found"));
+                new CustomerNotFoundException("Customer not found with ID: " + id));
         return customer.toCustomerDTO();
     }
 
     @Override
     public CustomerDTO getCustomerByStripeId(String id) {
         var customer = customerRepository.locateByStripeID(id).orElseThrow(() ->
-                new RuntimeException("Customer not found"));
+                new CustomerNotFoundException("Customer not found with Stripe ID: " + id));
         return customer.toCustomerDTO();
     }
 }

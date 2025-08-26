@@ -4,13 +4,13 @@ import org.nngc.client.EmailServiceClient;
 import org.nngc.client.TokenServiceClient;
 import org.nngc.dto.CustomerDTO;
 import org.nngc.entity.Customer;
+import org.nngc.exception.RegistrationException;
 import org.nngc.repository.CustomerRepository;
 import org.nngc.response.ApiResponse;
 import org.nngc.response.RegistrationRequest;
 import org.nngc.roles.AppUserRoles;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -26,23 +26,27 @@ public class RegistrationService {
     
     private static final Logger logger = LoggerFactory.getLogger(RegistrationService.class);
     
-    @Autowired
-    private CustomerRepository customerRepository;
-    
-    @Autowired
-    private PasswordEncoder passwordEncoder;
-    
-    @Autowired
-    private KeycloakService keycloakService;
-    
-    @Autowired
-    private TokenServiceClient tokenServiceClient;
-    
-    @Autowired
-    private EmailServiceClient emailServiceClient;
-    
-    @Value("${application.base-url:https://api.northernneckgarbage.com}")
-    private String baseUrl;
+    private final CustomerRepository customerRepository;
+    private final PasswordEncoder passwordEncoder;
+    private final KeycloakService keycloakService;
+    private final TokenServiceClient tokenServiceClient;
+    private final EmailServiceClient emailServiceClient;
+    private final String baseUrl;
+
+    public RegistrationService(
+            CustomerRepository customerRepository,
+            PasswordEncoder passwordEncoder,
+            KeycloakService keycloakService,
+            TokenServiceClient tokenServiceClient,
+            EmailServiceClient emailServiceClient,
+            @Value("${application.base-url:https://api.northernneckgarbage.com}") String baseUrl) {
+        this.customerRepository = customerRepository;
+        this.passwordEncoder = passwordEncoder;
+        this.keycloakService = keycloakService;
+        this.tokenServiceClient = tokenServiceClient;
+        this.emailServiceClient = emailServiceClient;
+        this.baseUrl = baseUrl;
+    }
     
     public Mono<ApiResponse> register(RegistrationRequest request) {
         logger.info("Processing registration for: {}", request.getEmail());
@@ -127,7 +131,7 @@ public class RegistrationService {
             
         } catch (Exception e) {
             logger.error("Registration failed: ", e);
-            return Mono.error(new RuntimeException("Registration failed: " + e.getMessage()));
+            return Mono.error(new RegistrationException("Registration failed: " + e.getMessage(), e));
         }
     }
     
@@ -174,7 +178,7 @@ public class RegistrationService {
                         .build())
                 .onErrorResume(error -> {
                     logger.error("Error resending verification email: ", error);
-                    return Mono.error(new RuntimeException("Failed to resend verification email"));
+                    return Mono.error(new RegistrationException("Failed to resend verification email"));
                 });
     }
     

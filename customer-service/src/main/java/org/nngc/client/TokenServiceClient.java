@@ -1,10 +1,10 @@
 package org.nngc.client;
 
 import org.nngc.dto.CustomerDTO;
+import org.nngc.dto.TokenRequest;
 import org.nngc.response.ApiResponse;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClient;
 import reactor.core.publisher.Mono;
@@ -14,8 +14,11 @@ public class TokenServiceClient {
     
     private static final Logger logger = LoggerFactory.getLogger(TokenServiceClient.class);
     
-    @Autowired
-    private WebClient webClient;
+    private final WebClient webClient;
+
+    public TokenServiceClient(WebClient webClient) {
+        this.webClient = webClient;
+    }
     
     public Mono<ApiResponse> saveUserToken(CustomerDTO customer, String token) {
         return webClient.post()
@@ -53,21 +56,5 @@ public class TokenServiceClient {
                 .bodyToMono(ApiResponse.class)
                 .doOnSuccess(response -> logger.info("Token confirmed successfully"))
                 .doOnError(error -> logger.error("Error confirming token: ", error));
-    }
-    
-    // Inner class for token request
-    public static class TokenRequest {
-        private Long customerId;
-        private String token;
-        
-        public TokenRequest(Long customerId, String token) {
-            this.customerId = customerId;
-            this.token = token;
-        }
-        
-        public Long getCustomerId() { return customerId; }
-        public void setCustomerId(Long customerId) { this.customerId = customerId; }
-        public String getToken() { return token; }
-        public void setToken(String token) { this.token = token; }
     }
 }
