@@ -1,5 +1,8 @@
-FROM openjdk:21-jdk-slim
+FROM eclipse-temurin:23-jdk-alpine
 LABEL authors="priest"
+
+RUN apk add --no-cache curl
+
 WORKDIR /app
 
 COPY api-gateway/target/*.jar api-gateway.jar

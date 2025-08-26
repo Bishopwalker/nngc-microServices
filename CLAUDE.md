@@ -2,8 +2,9 @@
 
 ## Author
 <NAME>My Nigga</NAME>
+Always Refer to me by Name. 
 ## Project Overview
-This is a Java-based microservices architecture project using Spring Boot and AWS Lambda. The system includes:
+This is a Java-based microservices architecture project using Spring Boot And Docker Containers. The system includes:
 - API Gateway
 - Customer Service 
 - Email Service
@@ -11,10 +12,23 @@ This is a Java-based microservices architecture project using Spring Boot and AW
 - Stripe Service
 - Google Integration
 - Service Registry (Eureka)
+- KeyCloak 
+
+## Always Ensure
+- File Structure is clean with no unneeded files
+- Recheck all good to ensure nothing is added that is extra
+- Always check how updates to code can affect functionality
+- Remove unused files from git 
+- Code is clean and readable
+- Code is well-documented
+- Code is well-tested
+- Code is well-architected
+- Code is secure
+- Code is easy to maintain
+- Code is easy to extend
 
 ## Architecture Patterns
 - Microservices with Spring Boot
-- AWS Lambda for serverless functions
 - API Gateway for routing
 - JWT authentication
 - Docker containerization
@@ -45,9 +59,14 @@ This is a Java-based microservices architecture project using Spring Boot and AW
 - Implement proper CORS configuration
 - Follow OWASP security practices
 - Use environment variables for secrets
+- Use env Files
 
 ## Service Communication
 - Use synchronous REST calls between services
 - Implement proper circuit breaker patterns
 - Handle service failures gracefully
 - Use proper HTTP status codes
+
+## Cleanup
+- Never Leave extra Files or Code that is unused
+- Remove unused dependencies

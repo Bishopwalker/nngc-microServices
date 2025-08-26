@@ -5,6 +5,7 @@ services:
       context: .
       dockerfile: service-registry/Dockerfile
     container_name: nngc-service-registry
+    restart: unless-stopped
     ports:
       - "8761:8761"
     environment:
@@ -24,6 +25,7 @@ services:
       context: .
       dockerfile: api-gateway/Dockerfile
     container_name: nngc-api-gateway
+    restart: unless-stopped
     ports:
       - "8088:8088"
     environment:
@@ -47,6 +49,7 @@ services:
       context: .
       dockerfile: customer-service/Dockerfile
     container_name: nngc-customer-service
+    restart: unless-stopped
     ports:
       - "8081:8081"
     environment:
@@ -74,6 +77,7 @@ services:
       context: .
       dockerfile: registration-service/Dockerfile
     container_name: nngc-registration-service
+    restart: unless-stopped
     ports:
       - "8085:8085"
     environment:
@@ -101,6 +105,7 @@ services:
       context: .
       dockerfile: token-service/Dockerfile
     container_name: nngc-token-service
+    restart: unless-stopped
     ports:
       - "8083:8083"
     environment:
@@ -127,6 +132,7 @@ services:
       context: .
       dockerfile: email-service/Dockerfile
     container_name: nngc-email-service
+    restart: unless-stopped
     ports:
       - "8084:8084"
     environment:
@@ -154,6 +160,7 @@ services:
       context: .
       dockerfile: stripe-service/Dockerfile
     container_name: nngc-stripe-service
+    restart: unless-stopped
     ports:
       - "8086:8086"
     environment:
@@ -182,6 +189,7 @@ services:
       context: .
       dockerfile: google-service/Dockerfile
     container_name: nngc-google-service
+    restart: unless-stopped
     ports:
       - "8087:8087"
     environment:

@@ -1,8 +1,10 @@
-FROM openjdk:21-jdk-slim
+FROM eclipse-temurin:23-jdk-alpine
+
+RUN apk add --no-cache curl
 
 WORKDIR /app
 
-COPY RegistrationService/target/*.jar registration-service.jar
+COPY registration-service/target/*.jar registration-service.jar
 
 EXPOSE 8085
 

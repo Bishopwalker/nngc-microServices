@@ -1,4 +1,6 @@
-FROM openjdk:21-jdk-slim
+FROM eclipse-temurin:23-jdk-alpine
+
+RUN apk add --no-cache curl
 
 WORKDIR /app
 

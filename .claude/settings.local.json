@@ -24,7 +24,8 @@
       "Bash(cmd.exe:*)",
       "Bash(git commit:*)",
       "Bash(cmd /c:*)",
-      "Bash(start:*)"
+      "Bash(start:*)",
+      "Bash(docker start:*)"
     ],
     "deny": []
   }
