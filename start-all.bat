@@ -1,4 +1,8 @@
 @echo off
+echo Killing existing Java processes...
+taskkill /f /im java.exe >nul 2>&1
+timeout /t 3 >nul
+
 echo Starting NNGC Microservices...
 
 REM Start Keycloak first

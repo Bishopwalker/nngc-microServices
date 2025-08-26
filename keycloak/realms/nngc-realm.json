@@ -57,7 +57,22 @@
       "attributes": {
         "client.secret.creation.time": "1640995200"
       }
+    },
+    
+    {
+      "clientId": "registration-service",
+      "enabled": true,
+      "clientAuthenticatorType": "client-secret",
+      "secret": "registration-service-secret",
+      "standardFlowEnabled": true,
+      "serviceAccountsEnabled": true,
+      "publicClient": false,
+      "protocol": "openid-connect",
+      "attributes": {
+        "client.secret.creation.time": "1640995200"
+      }
     }
+    
   ],
   "roles": {
     "realm": [

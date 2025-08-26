@@ -11,7 +11,7 @@ This setup integrates Keycloak as the identity and access management solution fo
 
 ## Prerequisites
 - Docker and Docker Compose
-- Java 17+
+- Java 23+
 - Maven 3.6+
 
 ## Quick Start
@@ -93,6 +93,8 @@ Each service has its own client configuration in Keycloak:
 - `customer-service` 
 - `token-service`
 - `service-registry`
+- `registration-service`
+- `email-service`
 
 ## Testing the Setup
 

@@ -68,6 +68,8 @@ services:
     networks:
       - nngc-network
 
+  #Registration Service
+
 
 networks:
   nngc-network:

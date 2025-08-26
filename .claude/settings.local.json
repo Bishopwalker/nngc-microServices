@@ -16,7 +16,12 @@
       "Bash(wmic process:*)",
       "Bash(taskkill:*)",
       "WebSearch",
-      "WebFetch(domain:hub.docker.com)"
+      "WebFetch(domain:hub.docker.com)",
+      "Bash(curl:*)",
+      "Bash(start-all.bat)",
+      "Read(/C:\\mnt\\c\\Users\\bisho\\IdeaProjects/**)",
+      "Bash(cmd.exe /c start-all.bat)",
+      "Bash(cmd.exe:*)"
     ],
     "deny": []
   }
