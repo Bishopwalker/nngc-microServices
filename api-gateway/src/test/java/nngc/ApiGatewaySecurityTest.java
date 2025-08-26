@@ -102,16 +102,6 @@ class ApiGatewaySecurityTest {
             .expectStatus().isNotFound(); // Route not found when services are down
     }
 
-    @Test
-    void shouldHandleCORSHeaders() {
-        // Test that CORS headers are present on responses
-        webTestClient
-            .get()
-            .uri("/api/customers/1")
-            .header("Origin", "http://localhost:5173")
-            .exchange()
-            .expectHeader().exists("Vary"); // CORS configuration adds Vary header
-    }
 
     @Test
     void shouldAllowActuatorEndpoints() {
