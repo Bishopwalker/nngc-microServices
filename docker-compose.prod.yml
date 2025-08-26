@@ -17,6 +17,29 @@ services:
       - nngc-prod-network
     restart: unless-stopped
 
+  # Registration Service
+  registration-service:
+    image: ${DOCKER_REGISTRY}/${CI_PROJECT_PATH}/registration-service:latest
+    container_name: staging-registration-service
+    ports:
+      - "8086:8086"
+    environment:
+      - SPRING_PROFILES_ACTIVE=prod
+      - EUREKA_CLIENT_SERVICE_URL_DEFAULTZONE=http://service-registry:8761/eureka/
+      - SERVER_PORT=8086
+    depends_on:
+      service-registry:
+        condition: service_healthy
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost:8086/actuator/health" ]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 40s
+    networks:
+      - nngc-prod-network
+    restart: unless-stopped
+
   # API Gateway
   api-gateway:
     image: ${DOCKER_REGISTRY}/${CI_PROJECT_PATH}/api-gateway:latest
