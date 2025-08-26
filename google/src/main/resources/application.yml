@@ -1,0 +1,51 @@
+server:
+  port: 8087
+
+spring:
+  application:
+    name: google-service
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          jwk-set-uri: http://localhost:8080/realms/nngc-realm/protocol/openid-connect/certs
+          issuer-uri: http://localhost:8080/realms/nngc-realm
+      client:
+        registration:
+          keycloak:
+            client-id: google-service
+            client-secret: your-google-service-secret
+            authorization-grant-type: client_credentials
+            scope: openid,profile
+        provider:
+          keycloak:
+            issuer-uri: http://localhost:8080/realms/nngc-realm
+
+eureka:
+  client:
+    service-url:
+      defaultZone: http://localhost:8761/eureka/
+    fetch-registry: true
+    register-with-eureka: true
+  instance:
+    prefer-ip-address: true
+
+# Google API Configuration
+google:
+  api-key: ${GOOGLE_API_KEY:your_google_api_key}
+  client-id: ${GOOGLE_CLIENT_ID:your_google_client_id}
+  client-secret: ${GOOGLE_CLIENT_SECRET:your_google_client_secret}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      show-details: always
+
+logging:
+  level:
+    org.nngc: INFO
+    root: INFO

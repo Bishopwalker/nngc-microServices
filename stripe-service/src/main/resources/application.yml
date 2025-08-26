@@ -1,0 +1,50 @@
+server:
+  port: 8086
+
+spring:
+  application:
+    name: stripe-service
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          jwk-set-uri: http://localhost:8080/realms/nngc-realm/protocol/openid-connect/certs
+          issuer-uri: http://localhost:8080/realms/nngc-realm
+      client:
+        registration:
+          keycloak:
+            client-id: stripe-service
+            client-secret: your-stripe-service-secret
+            authorization-grant-type: client_credentials
+            scope: openid,profile
+        provider:
+          keycloak:
+            issuer-uri: http://localhost:8080/realms/nngc-realm
+
+eureka:
+  client:
+    service-url:
+      defaultZone: http://localhost:8761/eureka/
+    fetch-registry: true
+    register-with-eureka: true
+  instance:
+    prefer-ip-address: true
+
+# Stripe Configuration
+stripe:
+  api-key: ${STRIPE_API_KEY:sk_test_your_stripe_api_key}
+  webhook-secret: ${STRIPE_WEBHOOK_SECRET:whsec_your_webhook_secret}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      show-details: always
+
+logging:
+  level:
+    org.nngc: INFO
+    root: INFO
