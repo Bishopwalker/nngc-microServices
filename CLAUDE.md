@@ -1,5 +1,7 @@
 # NNGC MicroServices - AI Assistant Guidelines
 
+## Author
+<NAME>My Nigga</NAME>
 ## Project Overview
 This is a Java-based microservices architecture project using Spring Boot and AWS Lambda. The system includes:
 - API Gateway

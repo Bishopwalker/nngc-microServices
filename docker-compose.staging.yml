@@ -21,7 +21,7 @@ services:
     image: ${DOCKER_REGISTRY}/${CI_PROJECT_PATH}/api-gateway:latest
     container_name: staging-gateway
     ports:
-      - "8080:8080"
+      - "8088:8088"
     environment:
       - SPRING_PROFILES_ACTIVE=staging
       - EUREKA_CLIENT_SERVICE_URL_DEFAULTZONE=http://service-registry:8761/eureka/
@@ -29,7 +29,7 @@ services:
       service-registry:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8080/actuator/health"]
+      test: ["CMD", "curl", "-f", "http://localhost:8088/actuator/health"]
       interval: 30s
       timeout: 10s
       retries: 5

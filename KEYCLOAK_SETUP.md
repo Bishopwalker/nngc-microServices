@@ -55,24 +55,45 @@ spring.security.oauth2.client.registration.keycloak.client-secret=service-regist
 cd service-registry
 mvn spring-boot:run
 
-# 2. Customer Service
+# 2. API Gateway
+cd ../api-gateway
+mvn spring-boot:run
+
+# 3. Customer Service
 cd ../customer-service
 mvn spring-boot:run
 
-# 3. Token Service
+# 4. Token Service
 cd ../token-service
 mvn spring-boot:run
 
-# 4. API Gateway
-cd ../api-gateway
+# 5. Registration Service
+cd ../registration-service
 mvn spring-boot:run
+
+# 6. Google Service
+cd ../google-service
+mvn spring-boot:run
+
+# 7. Email Service
+cd ../email-service
+mvn spring-boot:run
+
+# 8. Stripe Service
+cd ../stripe-service
+mvn spring-boot:run
+
 ```
 
 ## Service Ports
 - **Keycloak**: 8080
-- **API Gateway**: 8081
-- **Customer Service**: 8082
+- - **Customer Service**: 8082
 - **Token Service**: 8083
+- **Email Service**: 8084
+- **Registration Service**: 8085
+- **Stripe Service**: 8086
+- **Google Service**: 8087
+- **API Gateway**: 8088
 - **Service Registry**: 8761
 
 ## Security Features
@@ -95,6 +116,8 @@ Each service has its own client configuration in Keycloak:
 - `service-registry`
 - `registration-service`
 - `email-service`
+- `google-service`
+- `stripe-service`
 
 ## Testing the Setup
 

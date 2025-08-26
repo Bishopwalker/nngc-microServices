@@ -11,6 +11,22 @@
 
     <name>NNGC Microservices Parent</name>
     <description>Parent POM for NNGC Microservices</description>
+    <url>https://northernneckgarbage.com</url>
+    <licenses>
+        <license>
+            <name>Licensed by NNGC</name>
+        </license>
+    </licenses>
+    <developers>
+        <developer>
+            <name>Bishop Walker</name>
+            <email>bishop@northernneckgarbage.com</email>
+            <roles>
+                <role>CTO</role>
+                <role>ADMIN</role>
+            </roles>
+        </developer>
+    </developers>
 
     <modules>
         <module>api-gateway</module>

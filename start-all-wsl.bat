@@ -76,10 +76,10 @@ echo All services are starting...
 echo ========================================
 echo Keycloak Admin:     http://localhost:8080 (admin/admin)
 echo Service Registry:   http://localhost:8761
-echo API Gateway:        http://localhost:8080
+echo API Gateway:        http://localhost:8088
 echo Email Service:      http://localhost:8084
 echo Token Service:      http://localhost:8083  
-echo Customer Service:   http://localhost:8082
+echo Customer Service:   http://localhost:8081
 echo Registration:       http://localhost:8085
 echo Stripe Service:     http://localhost:8086
 echo Google Service:     http://localhost:8087

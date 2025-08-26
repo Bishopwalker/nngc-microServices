@@ -25,6 +25,12 @@
             <artifactId>spring-cloud-starter-netflix-eureka-client</artifactId>
         </dependency>
 
+        <!-- Circuit Breaker for resilience -->
+        <dependency>
+            <groupId>org.springframework.cloud</groupId>
+            <artifactId>spring-cloud-starter-circuitbreaker-reactor-resilience4j</artifactId>
+        </dependency>
+
         <!-- Spring Security for OAuth2 Resource Server -->
         <dependency>
             <groupId>org.springframework.boot</groupId>

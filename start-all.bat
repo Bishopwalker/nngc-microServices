@@ -1,4 +1,8 @@
 @echo off
+echo Setting up environment variables...
+call setup-env.bat
+echo.
+
 echo Killing existing Java processes...
 taskkill /f /im java.exe >nul 2>&1
 timeout /t 3 >nul
@@ -41,17 +45,12 @@ start "Stripe Service" cmd /c "cd stripe-service && mvn spring-boot:run"
 REM Wait for Stripe Service
 timeout /t 15 /nobreak > nul
 
-REM Wait for core services
-timeout /t 20 /nobreak > nul
-
-
 REM Start Registration Service
 echo [6/9] Starting Registration Service...
 start "Registration Service" cmd /c "cd registration-service && mvn spring-boot:run"
 
 REM Wait for Registration Service
 timeout /t 15 /nobreak > nul
-
 
 REM Start Email Service
 echo [7/9] Starting Email Service...
@@ -67,7 +66,6 @@ start "Token Service" cmd /c "cd token-service && mvn spring-boot:run"
 REM Wait for Token Service
 timeout /t 15 /nobreak > nul
 
-
 REM Start Customer Service
 echo [9/9] Starting Customer Service...
 start "Customer Service" cmd /c "cd customer-service && mvn spring-boot:run"
@@ -81,13 +79,13 @@ echo All services are starting...
 echo ========================================
 echo Keycloak Admin:     http://localhost:8080 (admin/admin)
 echo Service Registry:   http://localhost:8761
-echo API Gateway:        http://localhost:8080
+echo API Gateway:        http://localhost:8088
 echo Google Service:     http://localhost:8087
 echo Email Service:      http://localhost:8084
 echo Token Service:      http://localhost:8083
-echo Customer Service:   http://localhost:8082
 echo Registration:       http://localhost:8085
 echo Stripe Service:     http://localhost:8086
+echo Customer Service:   http://localhost:8081
 echo ========================================
 echo.
 echo Services starting in background. Check task manager for java.exe processes.
