@@ -49,12 +49,19 @@ public class CustomerServiceImpl implements CustomerService {
             throw new IllegalStateException("Customer with email " + email + " already exists");
         }
         
+        // Handle password - use default if not provided
+        String password = (String) customerData.get("password");
+        String encodedPassword = null;
+        if (password != null && !password.trim().isEmpty()) {
+            encodedPassword = passwordEncoder.encode(password);
+        }
+        
         // Create new customer
         Customer customer = Customer.builder()
                 .firstName((String) customerData.get("firstName"))
                 .lastName((String) customerData.get("lastName"))
                 .email(email.toLowerCase())
-                .password(passwordEncoder.encode((String) customerData.get("password")))
+                .password(encodedPassword)
                 .phone((String) customerData.get("phone"))
                 .houseNumber((String) customerData.get("houseNumber"))
                 .streetName((String) customerData.get("streetName"))

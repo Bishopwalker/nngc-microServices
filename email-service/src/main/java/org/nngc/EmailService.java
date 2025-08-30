@@ -1,6 +1,12 @@
 package org.nngc;
 
-import com.sendgrid.*;
+import com.sendgrid.Content;
+import com.sendgrid.Email;
+import com.sendgrid.Mail;
+import com.sendgrid.Method;
+import com.sendgrid.Request;
+import com.sendgrid.Response;
+import com.sendgrid.SendGrid;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -18,7 +24,7 @@ public class EmailService implements EmailSender {
 
 
 
-    private final static Logger LOGGER = LoggerFactory.getLogger(EmailService.class);
+    private static final Logger LOGGER = LoggerFactory.getLogger(EmailService.class);
 
 
     @Override
@@ -65,6 +71,7 @@ LOGGER.info("Sending email to {}", to);
             LOGGER.info("Email sent with status code: {}", response.getStatusCode());
         } catch (IOException ex) {
             LOGGER.error("Error in sending email: {}", ex.getMessage());
+            LOGGER.error(String.valueOf(ex));
             throw ex;
         }
     }

@@ -122,14 +122,14 @@ public class RegistrationService {
                         if (keycloakUserId != null) {
                             try {
                                 keycloakService.deleteUser(request.getEmail());
-                            } catch (Exception e) {
+                            } catch (RuntimeException e) {
                                 logger.error("Failed to rollback Keycloak user: ", e);
                             }
                         }
                         return Mono.error(error);
                     });
             
-        } catch (Exception e) {
+        } catch (RuntimeException e) {
             logger.error("Registration failed: ", e);
             return Mono.error(new RegistrationException("Registration failed: " + e.getMessage(), e));
         }
@@ -215,6 +215,27 @@ public class RegistrationService {
                 })
                 .onErrorResume(error -> {
                     logger.error("Error confirming email: ", error);
+                    return Mono.just(ApiResponse.builder()
+                            .message("Invalid or expired token")
+                            .status("FAILED")
+                            .build());
+                });
+    }
+    
+    public Mono<ApiResponse> getTokenStatus(String token) {
+        logger.info("Checking token status");
+        
+        return tokenServiceClient.confirmToken(token)
+                .map(response -> {
+                    // Don't actually confirm, just check status
+                    return ApiResponse.builder()
+                            .message("Token status retrieved")
+                            .status(response.getStatus())
+                            .customerDTO(response.getCustomerDTO())
+                            .build();
+                })
+                .onErrorResume(error -> {
+                    logger.error("Error checking token status: ", error);
                     return Mono.just(ApiResponse.builder()
                             .message("Invalid or expired token")
                             .status("FAILED")

@@ -1,6 +1,7 @@
-package org.nngc.registrationservice.client;
+package org.nngc.client;
 
-import org.nngc.registrationservice.registration.ApiResponse;
+import org.nngc.registration.ApiResponse;
+import org.nngc.registration.RegistrationRequest;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -9,8 +10,6 @@ import org.springframework.web.reactive.function.client.WebClientResponseExcepti
 import reactor.core.publisher.Mono;
 
 import java.time.Duration;
-import java.util.HashMap;
-import java.util.Map;
 
 @Service
 public class CustomerServiceClient {
@@ -18,6 +17,7 @@ public class CustomerServiceClient {
     private static final Logger logger = LoggerFactory.getLogger(CustomerServiceClient.class);
     
     private final WebClient.Builder webClientBuilder;
+    private static final String FAILED="FAILED";
 
     public CustomerServiceClient(WebClient.Builder webClientBuilder) {
         this.webClientBuilder = webClientBuilder;
@@ -27,96 +27,40 @@ public class CustomerServiceClient {
         return webClientBuilder.baseUrl("http://customer-service").build();
     }
     
-    private WebClient getTokenServiceClient() {
-        return webClientBuilder.baseUrl("http://token-service").build();
-    }
     
-    private WebClient getEmailServiceClient() {
-        return webClientBuilder.baseUrl("http://email-service").build();
-    }
-    
-    public Mono<ApiResponse> createCustomer(Map<String, Object> customerData) {
-        logger.info("Creating customer in Customer Service");
+    public Mono<ApiResponse> registerCustomer(RegistrationRequest request) {
+        logger.info("Registering customer via Customer Service: {}", request.getEmail());
         
         return getCustomerServiceClient()
                 .post()
-                .uri("/api/customers/create")
-                .bodyValue(customerData)
+                .uri("/api/customers/register")
+                .bodyValue(request)
                 .retrieve()
                 .bodyToMono(ApiResponse.class)
                 .timeout(Duration.ofSeconds(30))
-                .doOnSuccess(response -> logger.info("Customer created successfully"))
+                .doOnSuccess(response -> logger.info("Customer registration completed successfully"))
                 .onErrorResume(WebClientResponseException.class, ex -> {
-                    logger.error("Failed to create customer with status: {}", ex.getStatusCode());
+                    logger.error("Failed to register customer with status: {}", ex.getStatusCode());
                     return Mono.just(ApiResponse.builder()
-                            .message("Failed to create customer: " + ex.getResponseBodyAsString())
-                            .status("FAILED")
+                            .message("Failed to register customer: " + ex.getResponseBodyAsString())
+                            .status(FAILED)
                             .build());
                 })
                 .onErrorResume(Exception.class, ex -> {
-                    logger.error("Failed to create customer", ex);
+                    logger.error("Failed to register customer", ex);
                     return Mono.just(ApiResponse.builder()
                             .message("Customer service unavailable")
-                            .status("FAILED")
+                            .status(FAILED)
                             .build());
-                });
-    }
-    
-    public Mono<ApiResponse> generateVerificationToken(Object customerDTO) {
-        logger.info("Generating verification token via Token Service");
-        
-        return getTokenServiceClient()
-                .post()
-                .uri("/api/tokens/generate")
-                .bodyValue(customerDTO)
-                .retrieve()
-                .bodyToMono(ApiResponse.class)
-                .timeout(Duration.ofSeconds(30))
-                .doOnSuccess(response -> logger.info("Token generated successfully"))
-                .onErrorResume(WebClientResponseException.class, ex -> {
-                    logger.error("Failed to generate token with status: {}", ex.getStatusCode());
-                    return Mono.just(ApiResponse.builder()
-                            .message("Failed to generate token: " + ex.getResponseBodyAsString())
-                            .status("FAILED")
-                            .build());
-                })
-                .onErrorResume(Exception.class, ex -> {
-                    logger.error("Failed to generate token", ex);
-                    return Mono.just(ApiResponse.builder()
-                            .message("Token service unavailable")
-                            .status("FAILED")
-                            .build());
-                });
-    }
-    
-    public Mono<Void> sendVerificationEmail(String email, String firstName, String confirmationLink) {
-        logger.info("Sending verification email to: {}", email);
-        
-        Map<String, String> emailRequest = new HashMap<>();
-        emailRequest.put("email", email);
-        emailRequest.put("firstName", firstName);
-        emailRequest.put("confirmationLink", confirmationLink);
-        
-        return getEmailServiceClient()
-                .post()
-                .uri("/api/email/send-verification")
-                .bodyValue(emailRequest)
-                .retrieve()
-                .bodyToMono(Void.class)
-                .timeout(Duration.ofSeconds(30))
-                .doOnSuccess(response -> logger.info("Verification email sent successfully to: {}", email))
-                .onErrorResume(Exception.class, ex -> {
-                    logger.error("Failed to send verification email to: {}", email, ex);
-                    return Mono.empty();
                 });
     }
     
     public Mono<ApiResponse> confirmEmailToken(String token) {
-        logger.info("Confirming email token via Token Service");
+        logger.info("Confirming email token via Customer Service");
         
-        return getTokenServiceClient()
+        return getCustomerServiceClient()
                 .post()
-                .uri("/api/tokens/confirm?token={token}", token)
+                .uri("/api/customers/confirm-email?token={token}", token)
                 .retrieve()
                 .bodyToMono(ApiResponse.class)
                 .timeout(Duration.ofSeconds(30))
@@ -125,14 +69,14 @@ public class CustomerServiceClient {
                     logger.error("Token confirmation failed with status: {}", ex.getStatusCode());
                     return Mono.just(ApiResponse.builder()
                             .message("Invalid or expired token")
-                            .status("FAILED")
+                            .status(FAILED)
                             .build());
                 })
                 .onErrorResume(Exception.class, ex -> {
                     logger.error("Token confirmation failed", ex);
                     return Mono.just(ApiResponse.builder()
-                            .message("Token service unavailable")
-                            .status("FAILED")
+                            .message("Customer service unavailable")
+                            .status(FAILED)
                             .build());
                 });
     }
@@ -151,24 +95,24 @@ public class CustomerServiceClient {
                     logger.error("Resend verification failed with status: {} for: {}", ex.getStatusCode(), email);
                     return Mono.just(ApiResponse.builder()
                             .message("Resend verification failed: " + ex.getResponseBodyAsString())
-                            .status("FAILED")
+                            .status(FAILED)
                             .build());
                 })
                 .onErrorResume(Exception.class, ex -> {
                     logger.error("Resend verification failed for: {}", email, ex);
                     return Mono.just(ApiResponse.builder()
                             .message("Service unavailable")
-                            .status("FAILED")
+                            .status(FAILED)
                             .build());
                 });
     }
     
     public Mono<ApiResponse> getTokenStatus(String token) {
-        logger.info("Checking token status via Token Service");
+        logger.info("Checking token status via Customer Service");
         
-        return getTokenServiceClient()
+        return getCustomerServiceClient()
                 .get()
-                .uri("/api/tokens/status?token={token}", token)
+                .uri("/api/customers/token-status?token={token}", token)
                 .retrieve()
                 .bodyToMono(ApiResponse.class)
                 .timeout(Duration.ofSeconds(30))
@@ -177,14 +121,14 @@ public class CustomerServiceClient {
                     logger.error("Token status check failed with status: {}", ex.getStatusCode());
                     return Mono.just(ApiResponse.builder()
                             .message("invalid")
-                            .status("FAILED")
+                            .status(FAILED)
                             .build());
                 })
                 .onErrorResume(Exception.class, ex -> {
                     logger.error("Token status check failed", ex);
                     return Mono.just(ApiResponse.builder()
                             .message("invalid")
-                            .status("FAILED")
+                            .status(FAILED)
                             .build());
                 });
     }

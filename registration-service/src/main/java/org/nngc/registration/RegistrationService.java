@@ -1,15 +1,10 @@
-package org.nngc.registrationservice.registration;
+package org.nngc.registration;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.nngc.registrationservice.client.CustomerServiceClient;
-import org.springframework.beans.factory.annotation.Value;
+import org.nngc.client.CustomerServiceClient;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Mono;
-
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.Map;
 
 @Service
 @RequiredArgsConstructor
@@ -17,9 +12,6 @@ import java.util.Map;
 public class RegistrationService {
     
     private final CustomerServiceClient customerServiceClient;
-    
-    @Value("${application.base-url:https://api.northernneckgarbage.com}")
-    private String baseUrl;
     
     public Mono<ApiResponse> resendVerificationEmail(String email) {
         log.info("Processing resend verification request for: {}", email);
@@ -39,7 +31,7 @@ public class RegistrationService {
     public Mono<ApiResponse> register(RegistrationRequest request) {
         log.info("Processing registration for: {}", request.getEmail());
         
-        // Validate request
+        // Basic validation
         if (!isValidEmail(request.getEmail())) {
             return Mono.error(new IllegalArgumentException("Invalid email format"));
         }
@@ -48,51 +40,9 @@ public class RegistrationService {
             return Mono.error(new IllegalArgumentException("Password must be at least 8 characters long"));
         }
         
-        // Create customer via Customer Service
-        Map<String, Object> customerData = new HashMap<>();
-        customerData.put("firstName", request.getFirstName());
-        customerData.put("lastName", request.getLastName());
-        customerData.put("email", request.getEmail().toLowerCase());
-        customerData.put("password", request.getPassword());
-        customerData.put("phone", request.getPhone());
-        customerData.put("houseNumber", request.getHouseNumber());
-        customerData.put("streetName", request.getStreetName());
-        customerData.put("city", request.getCity());
-        customerData.put("state", request.getState());
-        customerData.put("zipCode", request.getZipCode());
-        customerData.put("service", request.getService());
-        customerData.put("enabled", false);
-        
-        return customerServiceClient.createCustomer(customerData)
-                .flatMap(customerResponse -> {
-                    if ("SUCCESS".equals(customerResponse.getStatus())) {
-                        // Generate verification token via Token Service
-                        return customerServiceClient.generateVerificationToken(customerResponse.getCustomerDTO())
-                                .flatMap(tokenResponse -> {
-                                    String token = tokenResponse.getToken() != null && !tokenResponse.getToken().isEmpty() 
-                                        ? tokenResponse.getToken().get(0) : null;
-                                    
-                                    if (token == null) {
-                                        return Mono.error(new RuntimeException("Failed to generate verification token"));
-                                    }
-                                    
-                                    // Send verification email via Email Service
-                                    String confirmationLink = baseUrl + "/auth/nngc/confirm?token=" + token;
-                                    return customerServiceClient.sendVerificationEmail(
-                                            request.getEmail(),
-                                            request.getFirstName(),
-                                            confirmationLink
-                                    ).then(Mono.just(ApiResponse.builder()
-                                            .message("Registration successful. Please check your email for verification.")
-                                            .token(Collections.singletonList(token))
-                                            .customerDTO(customerResponse.getCustomerDTO())
-                                            .status("SUCCESS")
-                                            .build()));
-                                });
-                    } else {
-                        return Mono.error(new RuntimeException("Failed to create customer: " + customerResponse.getMessage()));
-                    }
-                })
+        // Delegate entire registration process to Customer Service
+        return customerServiceClient.registerCustomer(request)
+                .doOnSuccess(response -> log.info("Registration completed for: {}", request.getEmail()))
                 .onErrorResume(error -> {
                     log.error("Registration failed for: {}", request.getEmail(), error);
                     return Mono.just(ApiResponse.builder()

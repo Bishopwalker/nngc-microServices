@@ -117,7 +117,9 @@ public class KeycloakService {
                 response.close();
                 throw new KeycloakException("Failed to create user in Keycloak");
             }
-        } catch (Exception e) {
+        } catch (KeycloakException e) {
+            throw e;
+        } catch (RuntimeException e) {
             logger.error("Error creating user in Keycloak: ", e);
             throw new KeycloakException("Failed to create user in Keycloak: " + e.getMessage(), e);
         }
@@ -139,7 +141,7 @@ public class KeycloakService {
             } else {
                 logger.warn("User not found in Keycloak: {}", email);
             }
-        } catch (Exception e) {
+        } catch (RuntimeException e) {
             logger.error("Error enabling user in Keycloak: ", e);
             throw new KeycloakException("Failed to enable user in Keycloak: " + e.getMessage(), e);
         }
@@ -157,7 +159,7 @@ public class KeycloakService {
             // Assign role to user
             userResource.roles().realmLevel().add(Collections.singletonList(role));
             logger.info("Assigned role {} to user {}", roleName, userId);
-        } catch (Exception e) {
+        } catch (RuntimeException e) {
             logger.error("Error assigning role to user: ", e);
         }
     }
@@ -173,7 +175,7 @@ public class KeycloakService {
                 usersResource.delete(users.get(0).getId());
                 logger.info("Deleted user from Keycloak: {}", email);
             }
-        } catch (Exception e) {
+        } catch (RuntimeException e) {
             logger.error("Error deleting user from Keycloak: ", e);
             throw new KeycloakException("Failed to delete user from Keycloak: " + e.getMessage(), e);
         }
@@ -190,7 +192,7 @@ public class KeycloakService {
                 return users.get(0);
             }
             return null;
-        } catch (Exception e) {
+        } catch (RuntimeException e) {
             logger.error("Error getting user from Keycloak: ", e);
             return null;
         }

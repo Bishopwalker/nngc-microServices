@@ -1,4 +1,4 @@
-package org.nngc.registrationservice.registration;
+package org.nngc.registration;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 

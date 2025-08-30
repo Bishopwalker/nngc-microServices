@@ -25,7 +25,20 @@
       "Bash(git commit:*)",
       "Bash(cmd /c:*)",
       "Bash(start:*)",
-      "Bash(docker start:*)"
+      "Bash(docker start:*)",
+      "Bash(for file in \"C:\\Users\\bisho\\IdeaProjects\\NNGC MicroServices\"/*/src/main/resources/application.properties)",
+      "Bash(do echo \"=== $file ===\")",
+      "Bash(grep:*)",
+      "Bash(done)",
+      "Bash(for service in customer-service registration-service token-service stripe-service email-service google-service)",
+      "Bash(do echo \"=== $service ===\")",
+      "Bash(service-registry-control.bat:*)",
+      "Bash(docker network:*)",
+      "Bash(docker:*)",
+      "Bash(export:*)",
+      "Bash(timeout:*)",
+      "Bash(/dev/null)",
+      "Bash(del:*)"
     ],
     "deny": []
   }
