@@ -33,7 +33,7 @@ public class CustomerServiceClient {
         
         return getCustomerServiceClient()
                 .post()
-                .uri("/api/customers/register")
+                .uri("/api/customers/claude calauregister")
                 .bodyValue(request)
                 .retrieve()
                 .bodyToMono(ApiResponse.class)
