@@ -1,0 +1,49 @@
+server:
+  port: 8084
+
+spring:
+  application:
+    name: email-service
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          jwk-set-uri: http://host.docker.internal:8080/realms/nngc-realm/protocol/openid-connect/certs
+          issuer-uri: http://host.docker.internal:8080/realms/nngc-realm
+      client:
+        registration:
+          keycloak:
+            client-id: email-service
+            client-secret: your-email-service-secret
+            authorization-grant-type: client_credentials
+            scope: openid,profile
+        provider:
+          keycloak:
+            issuer-uri: http://host.docker.internal:8080/realms/nngc-realm
+
+eureka:
+  client:
+    service-url:
+      defaultZone: http://service-registry:8761/eureka/
+    fetch-registry: true
+    register-with-eureka: true
+  instance:
+    prefer-ip-address: true
+    
+# SendGrid Configuration
+sendgrid:
+  api-key: ${SENDGRID_API_KEY:your-sendgrid-api-key}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+  endpoint:
+    health:
+      show-details: always
+
+logging:
+  level:
+    org.nngc: DEBUG
+    root: INFO

@@ -1,0 +1,117 @@
+### Get Access Token from Keycloak
+POST http://localhost:8080/realms/nngc-realm/protocol/openid-connect/token
+Content-Type: application/x-www-form-urlencoded
+
+grant_type=client_credentials&client_id=api-gateway&client_secret=api-gateway-secret&scope=openid profile
+
+> {%
+    client.global.set("access_token", response.body.access_token);
+    client.log("Token saved: " + response.body.access_token.substring(0, 50) + "...");
+%}
+
+###
+# OPTION 1: Access Customer Service through API Gateway (RECOMMENDED)
+# The API Gateway handles routing and security
+###
+
+### Get All Customers via API Gateway
+GET http://localhost:8088/api/customers/all
+Authorization: Bearer {{access_token}}
+
+#fix
+### Create Customer via API Gateway (with password)
+POST http://localhost:8088/api/customers/create
+Authorization: Bearer {{access_token}}
+Content-Type: application/json
+
+{
+  "firstName": "John",
+  "lastName": "Doe",
+  "email": "john.doe@example.com",
+  "password": "SecurePassword123!",
+  "phone": "555-1234",
+  "houseNumber": "123",
+  "streetName": "Main St",
+  "city": "Richmond",
+  "state": "VA",
+  "zipCode": "23220",
+  "service": "BASIC"
+}
+
+### Create Customer via API Gateway (minimal - without password)
+POST http://localhost:8088/api/customers/create
+Authorization: Bearer {{access_token}}
+Content-Type: application/json
+
+{
+  "firstName": "Jane",
+  "lastName": "Smith",
+  "email": "jane.smith@example.com"
+}
+
+###
+# OPTION 2: Direct Customer Service Access (Port 8081)
+# Requires valid JWT token from Keycloak
+###
+
+### Get All Customers Direct
+GET http://localhost:8081/api/customers/all
+Authorization: Bearer {{access_token}}
+
+### Create Customer Direct
+POST http://localhost:8081/api/customers/create
+Authorization: Bearer {{access_token}}
+Content-Type: application/json
+
+{
+  "firstName": "Jane",
+  "lastName": "Smith",
+  "email": "jane.smith@example.com"
+}
+
+###
+# PUBLIC ENDPOINTS (No Auth Required)
+###
+
+### Health Check - Registration Service
+GET http://localhost:8088/auth/nngc/health
+
+### Health Check - Actuator
+GET http://localhost:8088/actuator/health
+
+### Registration (Public)
+POST http://localhost:8088/auth/nngc/registration
+Content-Type: application/json
+
+{
+  "firstName": "Test",
+  "lastName": "User",
+  "email": "test@example.com",
+  "password": "SecurePassword123!"
+}
+
+###
+# PROTECTED ENDPOINTS (Auth Required)
+###
+
+### Email Service - Send Email
+POST http://localhost:8088/api/email/send
+Authorization: Bearer {{access_token}}
+Content-Type: application/json
+
+{
+  "to": "recipient@example.com",
+  "subject": "Test Email",
+  "body": "This is a test email"
+}
+
+### Stripe Service - Create Payment
+POST http://localhost:8088/api/payments/create
+Authorization: Bearer {{access_token}}
+Content-Type: application/json
+
+{
+  "amount": 1000,
+  "currency": "usd",
+  "description": "Test payment"
+}

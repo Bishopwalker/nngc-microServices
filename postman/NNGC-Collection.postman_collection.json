@@ -1,0 +1,582 @@
+{
+	"info": {
+		"name": "NNGC Microservices",
+		"description": "Complete API collection for NNGC Microservices with OAuth2/Keycloak authentication",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"auth": {
+		"type": "bearer",
+		"bearer": [
+			{
+				"key": "token",
+				"value": "{{access_token}}",
+				"type": "string"
+			}
+		]
+	},
+	"event": [
+		{
+			"listen": "prerequest",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					"// Auto-refresh token before each request",
+					"const tokenUrl = pm.environment.get(\"keycloak_url\") + \"/realms/\" + pm.environment.get(\"realm\") + \"/protocol/openid-connect/token\";",
+					"const clientId = pm.environment.get(\"client_id\");",
+					"const clientSecret = pm.environment.get(\"client_secret\");",
+					"",
+					"// Check if we need to refresh token (you can add expiry check here)",
+					"const currentToken = pm.environment.get(\"access_token\");",
+					"",
+					"// Get new token if no current token or add your expiry logic",
+					"if (!currentToken || currentToken === \"\") {",
+					"    const getTokenRequest = {",
+					"        method: 'POST',",
+					"        url: tokenUrl,",
+					"        header: {",
+					"            'Content-Type': 'application/x-www-form-urlencoded'",
+					"        },",
+					"        body: {",
+					"            mode: 'urlencoded',",
+					"            urlencoded: [",
+					"                { key: 'grant_type', value: 'client_credentials' },",
+					"                { key: 'client_id', value: clientId },",
+					"                { key: 'client_secret', value: clientSecret },",
+					"                { key: 'scope', value: 'openid profile' }",
+					"            ]",
+					"        }",
+					"    };",
+					"",
+					"    pm.sendRequest(getTokenRequest, (err, response) => {",
+					"        if (err) {",
+					"            console.error('Token refresh failed:', err);",
+					"        } else {",
+					"            const jsonResponse = response.json();",
+					"            pm.environment.set(\"access_token\", jsonResponse.access_token);",
+					"            if (jsonResponse.refresh_token) {",
+					"                pm.environment.set(\"refresh_token\", jsonResponse.refresh_token);",
+					"            }",
+					"            console.log(\"Token refreshed successfully\");",
+					"        }",
+					"    });",
+					"}"
+				]
+			}
+		}
+	],
+	"item": [
+		{
+			"name": "Authentication",
+			"item": [
+				{
+					"name": "Get Access Token",
+					"request": {
+						"auth": {
+							"type": "noauth"
+						},
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/x-www-form-urlencoded"
+							}
+						],
+						"body": {
+							"mode": "urlencoded",
+							"urlencoded": [
+								{
+									"key": "grant_type",
+									"value": "{{grant_type}}"
+								},
+								{
+									"key": "client_id",
+									"value": "{{client_id}}"
+								},
+								{
+									"key": "client_secret",
+									"value": "{{client_secret}}"
+								},
+								{
+									"key": "scope",
+									"value": "{{scope}}"
+								}
+							]
+						},
+						"url": {
+							"raw": "{{token_url}}",
+							"host": ["{{token_url}}"]
+						},
+						"description": "Get OAuth2 access token from Keycloak"
+					},
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 200) {",
+									"    const response = pm.response.json();",
+									"    pm.environment.set('access_token', response.access_token);",
+									"    if (response.refresh_token) {",
+									"        pm.environment.set('refresh_token', response.refresh_token);",
+									"    }",
+									"    console.log('Token saved to environment');",
+									"}"
+								]
+							}
+						}
+					]
+				},
+				{
+					"name": "Refresh Token",
+					"request": {
+						"auth": {
+							"type": "noauth"
+						},
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/x-www-form-urlencoded"
+							}
+						],
+						"body": {
+							"mode": "urlencoded",
+							"urlencoded": [
+								{
+									"key": "grant_type",
+									"value": "refresh_token"
+								},
+								{
+									"key": "client_id",
+									"value": "{{client_id}}"
+								},
+								{
+									"key": "client_secret",
+									"value": "{{client_secret}}"
+								},
+								{
+									"key": "refresh_token",
+									"value": "{{refresh_token}}"
+								}
+							]
+						},
+						"url": {
+							"raw": "{{token_url}}",
+							"host": ["{{token_url}}"]
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "Registration Service",
+			"item": [
+				{
+					"name": "Health Check",
+					"request": {
+						"auth": {
+							"type": "noauth"
+						},
+						"method": "GET",
+						"url": {
+							"raw": "{{registration_service_url}}/health",
+							"host": ["{{registration_service_url}}"],
+							"path": ["health"]
+						}
+					}
+				},
+				{
+					"name": "Register User",
+					"request": {
+						"auth": {
+							"type": "noauth"
+						},
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"firstName\": \"{{test_first_name}}\",\n    \"lastName\": \"{{test_last_name}}\",\n    \"email\": \"{{test_email}}\",\n    \"password\": \"{{test_password}}\"\n}"
+						},
+						"url": {
+							"raw": "{{registration_service_url}}/registration",
+							"host": ["{{registration_service_url}}"],
+							"path": ["registration"]
+						}
+					}
+				},
+				{
+					"name": "Confirm Registration",
+					"request": {
+						"auth": {
+							"type": "noauth"
+						},
+						"method": "GET",
+						"url": {
+							"raw": "{{registration_service_url}}/confirm?token=YOUR_TOKEN_HERE",
+							"host": ["{{registration_service_url}}"],
+							"path": ["confirm"],
+							"query": [
+								{
+									"key": "token",
+									"value": "YOUR_TOKEN_HERE"
+								}
+							]
+						}
+					}
+				},
+				{
+					"name": "Token Status",
+					"request": {
+						"auth": {
+							"type": "noauth"
+						},
+						"method": "GET",
+						"url": {
+							"raw": "{{registration_service_url}}/token_status?token=YOUR_TOKEN_HERE",
+							"host": ["{{registration_service_url}}"],
+							"path": ["token_status"],
+							"query": [
+								{
+									"key": "token",
+									"value": "YOUR_TOKEN_HERE"
+								}
+							]
+						}
+					}
+				},
+				{
+					"name": "Resend Token",
+					"request": {
+						"method": "GET",
+						"url": {
+							"raw": "{{registration_service_url}}/resend-token/{{test_email}}",
+							"host": ["{{registration_service_url}}"],
+							"path": ["resend-token", "{{test_email}}"]
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "Customer Service",
+			"item": [
+				{
+					"name": "Get All Customers",
+					"request": {
+						"method": "GET",
+						"url": {
+							"raw": "{{customer_service_url}}/all",
+							"host": ["{{customer_service_url}}"],
+							"path": ["all"]
+						}
+					}
+				},
+				{
+					"name": "Get Customer by ID",
+					"request": {
+						"method": "GET",
+						"url": {
+							"raw": "{{customer_service_url}}/1",
+							"host": ["{{customer_service_url}}"],
+							"path": ["1"]
+						}
+					}
+				},
+				{
+					"name": "Create Customer",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"firstName\": \"{{test_first_name}}\",\n    \"lastName\": \"{{test_last_name}}\",\n    \"email\": \"{{test_email}}\"\n}"
+						},
+						"url": {
+							"raw": "{{customer_service_url}}/create",
+							"host": ["{{customer_service_url}}"],
+							"path": ["create"]
+						}
+					}
+				},
+				{
+					"name": "Update Customer",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"id\": 1,\n    \"firstName\": \"Updated\",\n    \"lastName\": \"Name\",\n    \"email\": \"updated@example.com\"\n}"
+						},
+						"url": {
+							"raw": "{{customer_service_url}}/update",
+							"host": ["{{customer_service_url}}"],
+							"path": ["update"]
+						}
+					}
+				},
+				{
+					"name": "Delete Customer",
+					"request": {
+						"method": "DELETE",
+						"url": {
+							"raw": "{{customer_service_url}}/delete/1",
+							"host": ["{{customer_service_url}}"],
+							"path": ["delete", "1"]
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "Email Service",
+			"item": [
+				{
+					"name": "Send Email",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"to\": \"{{test_email}}\",\n    \"subject\": \"Test Email\",\n    \"body\": \"This is a test email from NNGC Microservices\"\n}"
+						},
+						"url": {
+							"raw": "{{email_service_url}}/send",
+							"host": ["{{email_service_url}}"],
+							"path": ["send"]
+						}
+					}
+				},
+				{
+					"name": "Email Status",
+					"request": {
+						"method": "GET",
+						"url": {
+							"raw": "{{email_service_url}}/status",
+							"host": ["{{email_service_url}}"],
+							"path": ["status"]
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "Stripe Service",
+			"item": [
+				{
+					"name": "Create Payment",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"amount\": 1000,\n    \"currency\": \"usd\",\n    \"description\": \"Test payment\",\n    \"customerEmail\": \"{{test_email}}\"\n}"
+						},
+						"url": {
+							"raw": "{{stripe_service_url}}/create",
+							"host": ["{{stripe_service_url}}"],
+							"path": ["create"]
+						}
+					}
+				},
+				{
+					"name": "Process Charge",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"amount\": 2000,\n    \"currency\": \"usd\",\n    \"source\": \"tok_visa\",\n    \"description\": \"Charge for {{test_email}}\"\n}"
+						},
+						"url": {
+							"raw": "{{stripe_service_url}}/charge",
+							"host": ["{{stripe_service_url}}"],
+							"path": ["charge"]
+						}
+					}
+				},
+				{
+					"name": "Payment Status",
+					"request": {
+						"method": "GET",
+						"url": {
+							"raw": "{{stripe_service_url}}/status",
+							"host": ["{{stripe_service_url}}"],
+							"path": ["status"]
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "Google Service",
+			"item": [
+				{
+					"name": "OAuth Status",
+					"request": {
+						"method": "GET",
+						"url": {
+							"raw": "{{google_service_url}}/oauth/status",
+							"host": ["{{google_service_url}}"],
+							"path": ["oauth", "status"]
+						}
+					}
+				},
+				{
+					"name": "Google Auth",
+					"request": {
+						"method": "GET",
+						"url": {
+							"raw": "{{google_service_url}}/oauth",
+							"host": ["{{google_service_url}}"],
+							"path": ["oauth"]
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "Token Service",
+			"item": [
+				{
+					"name": "Login",
+					"request": {
+						"auth": {
+							"type": "noauth"
+						},
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"email\": \"{{test_email}}\",\n    \"password\": \"{{test_password}}\"\n}"
+						},
+						"url": {
+							"raw": "{{token_service_url}}/login",
+							"host": ["{{token_service_url}}"],
+							"path": ["login"]
+						}
+					}
+				},
+				{
+					"name": "Register",
+					"request": {
+						"auth": {
+							"type": "noauth"
+						},
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"email\": \"{{test_email}}\",\n    \"password\": \"{{test_password}}\",\n    \"firstName\": \"{{test_first_name}}\",\n    \"lastName\": \"{{test_last_name}}\"\n}"
+						},
+						"url": {
+							"raw": "{{token_service_url}}/register",
+							"host": ["{{token_service_url}}"],
+							"path": ["register"]
+						}
+					}
+				}
+			]
+		},
+		{
+			"name": "Actuator Endpoints",
+			"item": [
+				{
+					"name": "Health Check",
+					"request": {
+						"auth": {
+							"type": "noauth"
+						},
+						"method": "GET",
+						"url": {
+							"raw": "{{base_url}}/actuator/health",
+							"host": ["{{base_url}}"],
+							"path": ["actuator", "health"]
+						}
+					}
+				},
+				{
+					"name": "Info",
+					"request": {
+						"auth": {
+							"type": "noauth"
+						},
+						"method": "GET",
+						"url": {
+							"raw": "{{base_url}}/actuator/info",
+							"host": ["{{base_url}}"],
+							"path": ["actuator", "info"]
+						}
+					}
+				},
+				{
+					"name": "Gateway Routes",
+					"request": {
+						"auth": {
+							"type": "noauth"
+						},
+						"method": "GET",
+						"url": {
+							"raw": "{{base_url}}/actuator/gateway/routes",
+							"host": ["{{base_url}}"],
+							"path": ["actuator", "gateway", "routes"]
+						}
+					}
+				},
+				{
+					"name": "Metrics",
+					"request": {
+						"auth": {
+							"type": "noauth"
+						},
+						"method": "GET",
+						"url": {
+							"raw": "{{base_url}}/actuator/metrics",
+							"host": ["{{base_url}}"],
+							"path": ["actuator", "metrics"]
+						}
+					}
+				}
+			]
+		}
+	]
+}

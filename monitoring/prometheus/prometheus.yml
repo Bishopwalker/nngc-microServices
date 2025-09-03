@@ -1,0 +1,52 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+rule_files:
+  # - "first_rules.yml"
+  # - "second_rules.yml"
+
+scrape_configs:
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+
+  - job_name: 'api-gateway'
+    metrics_path: '/actuator/prometheus'
+    static_configs:
+      - targets: ['nngc-api-gateway:8088']
+
+  - job_name: 'service-registry'
+    metrics_path: '/actuator/prometheus'
+    static_configs:
+      - targets: ['nngc-service-registry:8761']
+
+  - job_name: 'customer-service'
+    metrics_path: '/actuator/prometheus'
+    static_configs:
+      - targets: ['nngc-customer-service:8081']
+
+  - job_name: 'registration-service'
+    metrics_path: '/actuator/prometheus'
+    static_configs:
+      - targets: ['nngc-registration-service:8085']
+
+  - job_name: 'token-service'
+    metrics_path: '/actuator/prometheus'
+    static_configs:
+      - targets: ['nngc-token-service:8083']
+
+  - job_name: 'stripe-service'
+    metrics_path: '/actuator/prometheus'
+    static_configs:
+      - targets: ['nngc-stripe-service:8086']
+
+  - job_name: 'email-service'
+    metrics_path: '/actuator/prometheus'
+    static_configs:
+      - targets: ['nngc-email-service:8084']
+
+  - job_name: 'google-service'
+    metrics_path: '/actuator/prometheus'
+    static_configs:
+      - targets: ['nngc-google-service:8087']

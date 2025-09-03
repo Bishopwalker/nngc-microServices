@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "ide": {
+      "command": "npx",
+      "args": ["-y", "@claude-ai/mcp-server-ide"],
+      "env": {}
+    }
+  }
+}
