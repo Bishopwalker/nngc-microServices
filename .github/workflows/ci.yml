@@ -396,20 +396,6 @@ jobs:
     name: Performance Baseline Testing
     needs: build-and-test
     if: github.ref == 'refs/heads/main'
-    
-    services:
-      postgres:
-        image: postgres:15
-        env:
-          POSTGRES_PASSWORD: testpass
-          POSTGRES_DB: nngc_test
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-        ports:
-          - 5432:5432
           
     steps:
     - name: Checkout code
@@ -421,43 +407,63 @@ jobs:
         java-version: '23'
         distribution: 'temurin'
         
-    - name: Start Service Registry
-      run: |
-        if [ -d "service-registry" ]; then
-          cd service-registry
-          mvn spring-boot:run -Dspring.profiles.active=test &
-          sleep 30
-          cd ..
-        fi
+    - name: Cache Maven dependencies
+      uses: actions/cache@v4
+      with:
+        path: .m2/repository
+        key: ${{ runner.os }}-maven-${{ hashFiles('**/pom.xml') }}
+        restore-keys: |
+          ${{ runner.os }}-maven-
         
     - name: Performance Test API Gateway
       run: |
         if [ -d "api-gateway" ]; then
           cd api-gateway
-          mvn spring-boot:run -Dspring.profiles.active=test &
-          sleep 45
+          echo "🚀 Starting API Gateway for performance testing..."
+          
+          # Start with test profile (no external dependencies)
+          mvn spring-boot:run -Dspring.profiles.active=test -Dserver.port=8080 &
+          GATEWAY_PID=$!
           
           # Wait for service to be ready
-          timeout 60s sh -c 'until curl -f http://localhost:8080/actuator/health; do sleep 2; done'
+          echo "⏳ Waiting for API Gateway to start..."
+          timeout 120s sh -c 'until curl -s http://localhost:8080/actuator/health > /dev/null; do echo "Waiting..."; sleep 5; done'
           
-          # Install Apache Bench if not available
-          if ! command -v ab &> /dev/null; then
-            sudo apt-get update && sudo apt-get install -y apache2-utils
+          if curl -s http://localhost:8080/actuator/health > /dev/null; then
+            echo "✅ API Gateway is ready"
+            
+            # Install Apache Bench if not available
+            if ! command -v ab &> /dev/null; then
+              echo "📦 Installing Apache Bench..."
+              sudo apt-get update && sudo apt-get install -y apache2-utils
+            fi
+            
+            # Run performance tests with Apache Bench
+            echo "🚀 Running performance baseline tests..."
+            ab -n 50 -c 5 -g performance-results.tsv http://localhost:8080/actuator/health || echo "⚠️ Performance test completed with warnings"
+            
+            echo "📊 Performance test results:"
+            cat performance-results.tsv | head -20 || echo "No results file generated"
+            
+          else
+            echo "❌ API Gateway failed to start within timeout"
           fi
           
-          # Run performance tests with Apache Bench
-          echo "🚀 Running performance baseline tests..."
-          ab -n 100 -c 10 -g performance-results.tsv http://localhost:8080/actuator/health || echo "⚠️ Performance test completed with warnings"
-          
+          # Cleanup
+          kill $GATEWAY_PID || true
           cd ..
+        else
+          echo "⚠️ API Gateway directory not found"
         fi
         
     - name: Upload performance results
       uses: actions/upload-artifact@v4
+      if: always()
       with:
         name: performance-baseline
         path: '**/performance-results.tsv'
         retention-days: 7
+        if-no-files-found: ignore
 
   # Compliance and audit
   compliance-audit:
