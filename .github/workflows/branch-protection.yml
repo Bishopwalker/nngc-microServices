@@ -262,11 +262,12 @@ jobs:
           echo "This may have bypassed required checks"
         fi
         
-        # Validate commit message format
+        # Validate commit message format (check first line only)
         commit_msg="${{ github.event.head_commit.message }}"
-        if [[ ! "$commit_msg" =~ ^(feat|fix|docs|style|refactor|test|chore|security|perf|ci|build|revert|Merge)(\([a-z0-9-]+\))?: .+ ]]; then
+        commit_title=$(echo "$commit_msg" | head -1)
+        if [[ ! "$commit_title" =~ ^(feat|fix|docs|style|refactor|test|chore|security|perf|ci|build|revert|Merge)(\([a-z0-9-]+\))?: .+ ]]; then
           echo "❌ Direct push with invalid commit message format"
-          echo "Message: $commit_msg"
+          echo "Title: $commit_title"
           exit 1
         fi
         
