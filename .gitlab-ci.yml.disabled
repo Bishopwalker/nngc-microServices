@@ -1,0 +1,89 @@
+# GitLab CI DISABLED - Switched to GitHub Actions
+# This file has been disabled to conserve GitLab compute credits
+# Re-enable by renaming to .gitlab-ci.yml when credits are available
+
+stages:
+  - build
+  - test
+  - package
+
+variables:
+  MAVEN_OPTS: "-Dmaven.repo.local=$CI_PROJECT_DIR/.m2/repository"
+
+cache:
+  key: "$CI_COMMIT_REF_SLUG"
+  paths:
+    - .m2/repository/
+
+# Build all microservices
+build:
+  image: maven:3.9.9-eclipse-temurin-23
+  stage: build
+  script:
+    - echo "Building all microservices..."
+    - |
+      for service in customer-service api-gateway service-registry registration-service email-service token-service; do
+        echo "Building $service..."
+        cd $service
+        mvn clean compile
+        cd ..
+      done
+  artifacts:
+    paths:
+      - "*/target/"
+    expire_in: 1 hour
+
+# Run tests for all services
+test:
+  image: maven:3.9.9-eclipse-temurin-23
+  stage: test
+  script:
+    - echo "Running tests for all microservices..."
+    - |
+      for service in customer-service api-gateway service-registry registration-service email-service token-service; do
+        echo "Testing $service..."
+        cd $service
+        mvn test || true  # Continue even if tests fail
+        cd ..
+      done
+  artifacts:
+    reports:
+      junit:
+        - "*/target/surefire-reports/TEST-*.xml"
+    paths:
+      - "*/target/surefire-reports/"
+    expire_in: 1 week
+  allow_failure: true
+
+# Package JAR files
+package:
+  image: maven:3.9.9-eclipse-temurin-23
+  stage: package
+  script:
+    - echo "Creating JAR packages..."
+    - |
+      for service in customer-service api-gateway service-registry registration-service email-service token-service; do
+        echo "Packaging $service..."
+        cd $service
+        mvn package -DskipTests
+        cd ..
+      done
+  artifacts:
+    paths:
+      - "*/target/*.jar"
+    expire_in: 1 week
+
+# Quick validation for merge requests
+validate-mr:
+  image: maven:3.9.9-eclipse-temurin-23
+  stage: build
+  script:
+    - echo "Quick validation check..."
+    - |
+      for service in customer-service api-gateway service-registry registration-service email-service token-service; do
+        cd $service
+        mvn validate compile
+        cd ..
+      done
+  only:
+    - merge_requests

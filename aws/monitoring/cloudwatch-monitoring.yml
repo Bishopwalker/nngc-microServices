@@ -1,0 +1,533 @@
+# CloudWatch Monitoring and Alerting for NNGC MicroServices
+# Comprehensive observability stack with dashboards, alarms, and notifications
+
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'NNGC MicroServices - CloudWatch Monitoring Stack'
+
+Parameters:
+  Environment:
+    Type: String
+    Default: 'production'
+    AllowedValues: ['staging', 'production']
+    
+  ProjectName:
+    Type: String
+    Default: 'nngc-microservices'
+    
+  ECSClusterName:
+    Type: String
+    Default: 'nngc-cluster'
+    
+  AlertEmail:
+    Type: String
+    Description: 'Email for monitoring alerts'
+    
+  SlackWebhookUrl:
+    Type: String
+    Default: ''
+    Description: 'Slack webhook URL for notifications (optional)'
+
+Resources:
+  # SNS Topics for Different Alert Severities
+  CriticalAlertsTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      TopicName: !Sub '${ProjectName}-critical-alerts'
+      DisplayName: 'NNGC Critical Alerts'
+      Subscription:
+        - Protocol: email
+          Endpoint: !Ref AlertEmail
+
+  WarningAlertsTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      TopicName: !Sub '${ProjectName}-warning-alerts'
+      DisplayName: 'NNGC Warning Alerts'
+      Subscription:
+        - Protocol: email
+          Endpoint: !Ref AlertEmail
+
+  InfoAlertsTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      TopicName: !Sub '${ProjectName}-info-alerts'
+      DisplayName: 'NNGC Info Alerts'
+
+  # Custom CloudWatch Dashboard
+  MicroservicesDashboard:
+    Type: AWS::CloudWatch::Dashboard
+    Properties:
+      DashboardName: !Sub '${ProjectName}-overview'
+      DashboardBody: !Sub |
+        {
+          "widgets": [
+            {
+              "type": "metric",
+              "x": 0,
+              "y": 0,
+              "width": 12,
+              "height": 6,
+              "properties": {
+                "metrics": [
+                  [ "AWS/ECS", "CPUUtilization", "ServiceName", "nngc-api-gateway", "ClusterName", "${ECSClusterName}" ],
+                  [ "...", "nngc-customer-service", ".", "." ],
+                  [ "...", "nngc-registration-service", ".", "." ],
+                  [ "...", "nngc-token-service", ".", "." ],
+                  [ "...", "nngc-email-service", ".", "." ]
+                ],
+                "view": "timeSeries",
+                "stacked": false,
+                "region": "${AWS::Region}",
+                "title": "ECS Service CPU Utilization",
+                "period": 300
+              }
+            },
+            {
+              "type": "metric",
+              "x": 12,
+              "y": 0,
+              "width": 12,
+              "height": 6,
+              "properties": {
+                "metrics": [
+                  [ "AWS/ECS", "MemoryUtilization", "ServiceName", "nngc-api-gateway", "ClusterName", "${ECSClusterName}" ],
+                  [ "...", "nngc-customer-service", ".", "." ],
+                  [ "...", "nngc-registration-service", ".", "." ],
+                  [ "...", "nngc-token-service", ".", "." ],
+                  [ "...", "nngc-email-service", ".", "." ]
+                ],
+                "view": "timeSeries",
+                "stacked": false,
+                "region": "${AWS::Region}",
+                "title": "ECS Service Memory Utilization",
+                "period": 300
+              }
+            },
+            {
+              "type": "metric",
+              "x": 0,
+              "y": 6,
+              "width": 8,
+              "height": 6,
+              "properties": {
+                "metrics": [
+                  [ "AWS/ApplicationELB", "RequestCount", "LoadBalancer", "app/nngc-alb/*" ],
+                  [ ".", "HTTPCode_Target_2XX_Count", ".", "." ],
+                  [ ".", "HTTPCode_Target_4XX_Count", ".", "." ],
+                  [ ".", "HTTPCode_Target_5XX_Count", ".", "." ]
+                ],
+                "view": "timeSeries",
+                "stacked": false,
+                "region": "${AWS::Region}",
+                "title": "Application Load Balancer Metrics",
+                "period": 300
+              }
+            },
+            {
+              "type": "metric",
+              "x": 8,
+              "y": 6,
+              "width": 8,
+              "height": 6,
+              "properties": {
+                "metrics": [
+                  [ "AWS/ApplicationELB", "TargetResponseTime", "LoadBalancer", "app/nngc-alb/*" ]
+                ],
+                "view": "timeSeries",
+                "stacked": false,
+                "region": "${AWS::Region}",
+                "title": "Response Time",
+                "period": 300,
+                "yAxis": {
+                  "left": {
+                    "min": 0,
+                    "max": 2
+                  }
+                }
+              }
+            },
+            {
+              "type": "metric",
+              "x": 16,
+              "y": 6,
+              "width": 8,
+              "height": 6,
+              "properties": {
+                "metrics": [
+                  [ "AWS/RDS", "DatabaseConnections", "DBClusterIdentifier", "nngc-db-cluster" ],
+                  [ ".", "CPUUtilization", ".", "." ],
+                  [ ".", "ReadLatency", ".", "." ],
+                  [ ".", "WriteLatency", ".", "." ]
+                ],
+                "view": "timeSeries",
+                "stacked": false,
+                "region": "${AWS::Region}",
+                "title": "RDS Database Metrics",
+                "period": 300
+              }
+            }
+          ]
+        }
+
+  # ECS Service Alarms - API Gateway
+  APIGatewayCPUAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub '${ProjectName}-api-gateway-cpu-high'
+      AlarmDescription: 'API Gateway CPU utilization too high'
+      MetricName: CPUUtilization
+      Namespace: AWS/ECS
+      Statistic: Average
+      Period: 300
+      EvaluationPeriods: 2
+      Threshold: 80
+      ComparisonOperator: GreaterThanThreshold
+      Dimensions:
+        - Name: ServiceName
+          Value: nngc-api-gateway
+        - Name: ClusterName
+          Value: !Ref ECSClusterName
+      AlarmActions:
+        - !Ref WarningAlertsTopic
+      TreatMissingData: breaching
+
+  APIGatewayMemoryAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub '${ProjectName}-api-gateway-memory-high'
+      AlarmDescription: 'API Gateway memory utilization too high'
+      MetricName: MemoryUtilization
+      Namespace: AWS/ECS
+      Statistic: Average
+      Period: 300
+      EvaluationPeriods: 2
+      Threshold: 85
+      ComparisonOperator: GreaterThanThreshold
+      Dimensions:
+        - Name: ServiceName
+          Value: nngc-api-gateway
+        - Name: ClusterName
+          Value: !Ref ECSClusterName
+      AlarmActions:
+        - !Ref WarningAlertsTopic
+
+  # Application Load Balancer Alarms
+  ALBHighResponseTimeAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub '${ProjectName}-alb-high-response-time'
+      AlarmDescription: 'Application Load Balancer response time too high'
+      MetricName: TargetResponseTime
+      Namespace: AWS/ApplicationELB
+      Statistic: Average
+      Period: 300
+      EvaluationPeriods: 2
+      Threshold: 1.0
+      ComparisonOperator: GreaterThanThreshold
+      AlarmActions:
+        - !Ref WarningAlertsTopic
+
+  ALBHigh5XXErrorsAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub '${ProjectName}-alb-high-5xx-errors'
+      AlarmDescription: 'Too many 5XX errors from load balancer'
+      MetricName: HTTPCode_Target_5XX_Count
+      Namespace: AWS/ApplicationELB
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 2
+      Threshold: 10
+      ComparisonOperator: GreaterThanThreshold
+      AlarmActions:
+        - !Ref CriticalAlertsTopic
+
+  # RDS Database Alarms
+  RDSCPUAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub '${ProjectName}-rds-cpu-high'
+      AlarmDescription: 'RDS CPU utilization too high'
+      MetricName: CPUUtilization
+      Namespace: AWS/RDS
+      Statistic: Average
+      Period: 300
+      EvaluationPeriods: 2
+      Threshold: 80
+      ComparisonOperator: GreaterThanThreshold
+      Dimensions:
+        - Name: DBClusterIdentifier
+          Value: nngc-db-cluster
+      AlarmActions:
+        - !Ref WarningAlertsTopic
+
+  RDSConnectionsAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub '${ProjectName}-rds-connections-high'
+      AlarmDescription: 'Too many database connections'
+      MetricName: DatabaseConnections
+      Namespace: AWS/RDS
+      Statistic: Average
+      Period: 300
+      EvaluationPeriods: 2
+      Threshold: 80
+      ComparisonOperator: GreaterThanThreshold
+      Dimensions:
+        - Name: DBClusterIdentifier
+          Value: nngc-db-cluster
+      AlarmActions:
+        - !Ref WarningAlertsTopic
+
+  # Custom Application Metrics Log Group
+  ApplicationMetricsLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub '/aws/ecs/${ProjectName}/application-metrics'
+      RetentionInDays: 30
+
+  # Metric Filters for Application Logs
+  ErrorLogMetricFilter:
+    Type: AWS::Logs::MetricFilter
+    Properties:
+      LogGroupName: !Ref ApplicationMetricsLogGroup
+      FilterPattern: '[timestamp, request_id, level="ERROR", ...]'
+      MetricTransformations:
+        - MetricNamespace: !Sub '${ProjectName}/Application'
+          MetricName: ErrorCount
+          MetricValue: '1'
+          DefaultValue: 0
+
+  WarningLogMetricFilter:
+    Type: AWS::Logs::MetricFilter
+    Properties:
+      LogGroupName: !Ref ApplicationMetricsLogGroup
+      FilterPattern: '[timestamp, request_id, level="WARN", ...]'
+      MetricTransformations:
+        - MetricNamespace: !Sub '${ProjectName}/Application'
+          MetricName: WarningCount
+          MetricValue: '1'
+          DefaultValue: 0
+
+  # Application Error Rate Alarm
+  ApplicationErrorRateAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub '${ProjectName}-application-error-rate'
+      AlarmDescription: 'Application error rate too high'
+      MetricName: ErrorCount
+      Namespace: !Sub '${ProjectName}/Application'
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 2
+      Threshold: 5
+      ComparisonOperator: GreaterThanThreshold
+      AlarmActions:
+        - !Ref CriticalAlertsTopic
+      TreatMissingData: notBreaching
+
+  # Lambda Function for Enhanced Alerting
+  AlertEnhancementLambda:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-alert-enhancer'
+      Runtime: python3.11
+      Handler: index.handler
+      Role: !GetAtt AlertLambdaRole.Arn
+      Code:
+        ZipFile: |
+          import json
+          import boto3
+          import os
+          import urllib3
+          from datetime import datetime
+          
+          def handler(event, context):
+              """Enhance CloudWatch alarms with additional context and routing"""
+              
+              print(f"Received alarm event: {json.dumps(event)}")
+              
+              # Parse SNS message
+              for record in event.get('Records', []):
+                  if record.get('EventSource') == 'aws:sns':
+                      message = json.loads(record['Sns']['Message'])
+                      process_alarm(message)
+              
+              return {'statusCode': 200}
+          
+          def process_alarm(alarm_message):
+              """Process CloudWatch alarm and send enhanced notifications"""
+              
+              alarm_name = alarm_message.get('AlarmName', 'Unknown')
+              new_state = alarm_message.get('NewStateValue', 'Unknown')
+              reason = alarm_message.get('NewStateReason', 'No reason provided')
+              region = alarm_message.get('Region', 'Unknown')
+              
+              # Determine severity and actions
+              severity = determine_severity(alarm_name, new_state)
+              
+              # Create enhanced message
+              enhanced_message = create_enhanced_message(alarm_message, severity)
+              
+              # Send to appropriate channels
+              if severity == 'CRITICAL':
+                  send_to_slack(enhanced_message, '🚨')
+                  send_to_pagerduty(enhanced_message)
+              elif severity == 'WARNING':
+                  send_to_slack(enhanced_message, '⚠️')
+              
+              # Log for audit
+              print(f"Processed {severity} alarm: {alarm_name}")
+          
+          def determine_severity(alarm_name, state):
+              """Determine alarm severity based on name and state"""
+              
+              if state != 'ALARM':
+                  return 'INFO'
+              
+              critical_keywords = ['5xx-errors', 'application-error-rate', 'service-down']
+              warning_keywords = ['cpu-high', 'memory-high', 'response-time']
+              
+              alarm_lower = alarm_name.lower()
+              
+              for keyword in critical_keywords:
+                  if keyword in alarm_lower:
+                      return 'CRITICAL'
+              
+              for keyword in warning_keywords:
+                  if keyword in alarm_lower:
+                      return 'WARNING'
+              
+              return 'INFO'
+          
+          def create_enhanced_message(alarm_message, severity):
+              """Create enhanced alarm message with context"""
+              
+              alarm_name = alarm_message.get('AlarmName', 'Unknown')
+              metric_name = alarm_message.get('MetricName', 'Unknown')
+              threshold = alarm_message.get('Threshold', 'Unknown')
+              
+              timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S UTC')
+              
+              message = f"""
+              {severity} Alert - NNGC MicroServices
+              
+              🕐 Time: {timestamp}
+              📊 Metric: {metric_name}
+              🎯 Threshold: {threshold}
+              📍 Alarm: {alarm_name}
+              
+              📋 Details:
+              {alarm_message.get('NewStateReason', 'No details available')}
+              
+              🔗 AWS Console: https://console.aws.amazon.com/cloudwatch/home?region={alarm_message.get('Region', 'us-east-1')}#alarmsV2:alarm/{alarm_name}
+              """
+              
+              return message.strip()
+          
+          def send_to_slack(message, emoji):
+              """Send message to Slack webhook"""
+              
+              webhook_url = os.environ.get('SLACK_WEBHOOK_URL')
+              if not webhook_url:
+                  print("No Slack webhook configured")
+                  return
+              
+              http = urllib3.PoolManager()
+              
+              payload = {
+                  'text': f'{emoji} {message}',
+                  'channel': '#nngc-alerts',
+                  'username': 'AWS CloudWatch'
+              }
+              
+              try:
+                  response = http.request('POST', webhook_url,
+                                        body=json.dumps(payload),
+                                        headers={'Content-Type': 'application/json'})
+                  print(f"Slack notification sent: {response.status}")
+              except Exception as e:
+                  print(f"Failed to send Slack notification: {e}")
+          
+          def send_to_pagerduty(message):
+              """Send critical alerts to PagerDuty (placeholder)"""
+              
+              # Implement PagerDuty integration if needed
+              print(f"Would send to PagerDuty: {message[:100]}...")
+      Environment:
+        Variables:
+          SLACK_WEBHOOK_URL: !Ref SlackWebhookUrl
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Project
+          Value: !Ref ProjectName
+
+  # Event Rules to Trigger Alert Enhancement
+  CriticalAlertsEventRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Name: !Sub '${ProjectName}-critical-alerts-rule'
+      EventPattern:
+        source:
+          - aws.sns
+        detail-type:
+          - SNS Message
+        detail:
+          TopicArn:
+            - !Ref CriticalAlertsTopic
+      Targets:
+        - Arn: !GetAtt AlertEnhancementLambda.Arn
+          Id: 'CriticalAlertProcessor'
+
+  # IAM Role for Alert Lambda
+  AlertLambdaRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub '${ProjectName}-alert-lambda-role'
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: CloudWatchAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - cloudwatch:GetMetricStatistics
+                  - cloudwatch:ListMetrics
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource: '*'
+
+  # Custom Metric for Business KPIs
+  BusinessMetricsLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub '/aws/lambda/${ProjectName}-business-metrics'
+      RetentionInDays: 90
+
+Outputs:
+  DashboardURL:
+    Description: 'CloudWatch Dashboard URL'
+    Value: !Sub 'https://console.aws.amazon.com/cloudwatch/home?region=${AWS::Region}#dashboards:name=${ProjectName}-overview'
+    
+  CriticalAlertsTopicArn:
+    Description: 'Critical Alerts SNS Topic ARN'
+    Value: !Ref CriticalAlertsTopic
+    
+  WarningAlertsTopicArn:
+    Description: 'Warning Alerts SNS Topic ARN'
+    Value: !Ref WarningAlertsTopic
+    
+  ApplicationMetricsLogGroup:
+    Description: 'Application Metrics Log Group'
+    Value: !Ref ApplicationMetricsLogGroup

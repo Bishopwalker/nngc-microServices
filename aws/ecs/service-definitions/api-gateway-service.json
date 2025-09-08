@@ -1,0 +1,57 @@
+{
+  "serviceName": "nngc-api-gateway",
+  "cluster": "nngc-cluster",
+  "taskDefinition": "nngc-api-gateway:LATEST",
+  "desiredCount": 2,
+  "launchType": "FARGATE",
+  "platformVersion": "LATEST",
+  "networkConfiguration": {
+    "awsvpcConfiguration": {
+      "subnets": [
+        "subnet-12345678",
+        "subnet-87654321"
+      ],
+      "securityGroups": [
+        "sg-api-gateway"
+      ],
+      "assignPublicIp": "ENABLED"
+    }
+  },
+  "loadBalancers": [
+    {
+      "targetGroupArn": "arn:aws:elasticloadbalancing:YOUR_REGION:YOUR_ACCOUNT:targetgroup/nngc-api-gateway/1234567890123456",
+      "containerName": "api-gateway",
+      "containerPort": 8080
+    }
+  ],
+  "serviceRegistries": [
+    {
+      "registryArn": "arn:aws:servicediscovery:YOUR_REGION:YOUR_ACCOUNT:service/srv-12345678",
+      "containerName": "api-gateway",
+      "containerPort": 8080
+    }
+  ],
+  "deploymentConfiguration": {
+    "maximumPercent": 200,
+    "minimumHealthyPercent": 50,
+    "deploymentCircuitBreaker": {
+      "enable": true,
+      "rollback": true
+    }
+  },
+  "healthCheckGracePeriodSeconds": 300,
+  "tags": [
+    {
+      "key": "Environment",
+      "value": "production"
+    },
+    {
+      "key": "Project",
+      "value": "NNGC"
+    },
+    {
+      "key": "Service",
+      "value": "api-gateway"
+    }
+  ]
+}

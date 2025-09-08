@@ -1,0 +1,197 @@
+# GitHub Actions workflow for ECS deployment (when ready for production)
+name: Deploy to AWS ECS
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment to deploy to'
+        required: true
+        default: 'staging'
+        type: choice
+        options:
+          - staging
+          - production
+      services:
+        description: 'Services to deploy (comma-separated, or "all")'
+        required: true
+        default: 'all'
+        
+# IMPORTANT: This workflow is prepared but disabled until production-ready
+# Enable by moving to .github/workflows/ and configuring AWS credentials
+
+env:
+  AWS_REGION: us-east-1
+  ECR_REGISTRY: ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.us-east-1.amazonaws.com
+  ECS_CLUSTER: nngc-cluster
+
+jobs:
+  # Build and push Docker images
+  build-and-push:
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    
+    strategy:
+      matrix:
+        service: [
+          api-gateway,
+          customer-service, 
+          registration-service,
+          token-service,
+          email-service,
+          google-service,
+          stripe-service,
+          service-registry
+        ]
+      fail-fast: false
+      
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: ${{ env.AWS_REGION }}
+        
+    - name: Login to Amazon ECR
+      id: login-ecr
+      uses: aws-actions/amazon-ecr-login@v2
+      
+    - name: Set up JDK 23
+      uses: actions/setup-java@v4
+      with:
+        java-version: '23'
+        distribution: 'temurin'
+        
+    - name: Cache Maven dependencies
+      uses: actions/cache@v4
+      with:
+        path: .m2/repository
+        key: ${{ runner.os }}-maven-${{ hashFiles('**/pom.xml') }}
+        restore-keys: |
+          ${{ runner.os }}-maven-
+          
+    - name: Build JAR
+      run: |
+        cd ${{ matrix.service }}
+        mvn clean package -DskipTests -q
+        
+    - name: Build and tag Docker image
+      env:
+        ECR_REPOSITORY: nngc-${{ matrix.service }}
+        IMAGE_TAG: ${{ github.sha }}
+      run: |
+        cd ${{ matrix.service }}
+        docker build -t $ECR_REPOSITORY:$IMAGE_TAG .
+        docker tag $ECR_REPOSITORY:$IMAGE_TAG $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+        docker tag $ECR_REPOSITORY:$IMAGE_TAG $ECR_REGISTRY/$ECR_REPOSITORY:latest
+        
+    - name: Push image to ECR
+      env:
+        ECR_REPOSITORY: nngc-${{ matrix.service }}
+        IMAGE_TAG: ${{ github.sha }}
+      run: |
+        docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+        docker push $ECR_REGISTRY/$ECR_REPOSITORY:latest
+        
+    - name: Output image URI
+      env:
+        ECR_REPOSITORY: nngc-${{ matrix.service }}
+        IMAGE_TAG: ${{ github.sha }}
+      run: |
+        echo "Image URI: $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG"
+
+  # Deploy to ECS
+  deploy:
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    
+    strategy:
+      matrix:
+        service: [
+          api-gateway,
+          customer-service,
+          registration-service, 
+          token-service,
+          email-service,
+          google-service,
+          stripe-service,
+          service-registry
+        ]
+      fail-fast: false
+      max-parallel: 3  # Deploy services gradually
+      
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: ${{ env.AWS_REGION }}
+        
+    - name: Update ECS task definition
+      id: task-def
+      uses: aws-actions/amazon-ecs-render-task-definition@v1
+      with:
+        task-definition: aws/ecs/task-definitions/${{ matrix.service }}.json
+        container-name: ${{ matrix.service }}
+        image: ${{ env.ECR_REGISTRY }}/nngc-${{ matrix.service }}:${{ github.sha }}
+        
+    - name: Deploy to ECS service
+      uses: aws-actions/amazon-ecs-deploy-task-definition@v1
+      with:
+        task-definition: ${{ steps.task-def.outputs.task-definition }}
+        service: nngc-${{ matrix.service }}
+        cluster: ${{ env.ECS_CLUSTER }}
+        wait-for-service-stability: true
+        wait-for-minutes: 10
+        
+    - name: Verify deployment
+      run: |
+        echo "✅ ${{ matrix.service }} deployed successfully"
+        aws ecs describe-services \
+          --cluster ${{ env.ECS_CLUSTER }} \
+          --services nngc-${{ matrix.service }} \
+          --query 'services[0].deployments[?status==`PRIMARY`].{Status:status,RunningCount:runningCount,DesiredCount:desiredCount}'
+
+  # Health check after deployment
+  health-check:
+    needs: deploy
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    
+    steps:
+    - name: Wait for services to stabilize
+      run: sleep 60
+      
+    - name: Check service health
+      run: |
+        echo "🏥 Checking service health..."
+        
+        # Add health check URLs when ALB is configured
+        services=(
+          "api-gateway:8080"
+          "customer-service:8081"
+          "registration-service:8082"
+          "token-service:8083"
+          "email-service:8084"
+          "google-service:8087"
+          "stripe-service:8085"
+          "service-registry:8761"
+        )
+        
+        for service_port in "${services[@]}"; do
+          service="${service_port%:*}"
+          port="${service_port#*:}"
+          echo "Checking $service health..."
+          # curl -f https://your-alb-url.com/$service/actuator/health || echo "❌ $service health check failed"
+        done
+        
+        echo "🎯 Deployment completed! Check AWS Console for detailed status."

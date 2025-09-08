@@ -1,0 +1,238 @@
+name: SonarQube Analysis
+
+on:
+  push:
+    branches: [ main, bishop_dev ]
+  pull_request:
+    branches: [ main, bishop_dev ]
+  workflow_dispatch:
+
+env:
+  JAVA_VERSION: '23'
+  MAVEN_OPTS: '-Dmaven.repo.local=.m2/repository'
+
+jobs:
+  sonarqube-analysis:
+    runs-on: ubuntu-latest
+    name: SonarQube Code Quality Analysis
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        # Fetch full history for better analysis
+        fetch-depth: 0
+        
+    - name: Set up JDK 23
+      uses: actions/setup-java@v4
+      with:
+        java-version: ${{ env.JAVA_VERSION }}
+        distribution: 'temurin'
+        
+    - name: Cache SonarQube packages
+      uses: actions/cache@v4
+      with:
+        path: ~/.sonar/cache
+        key: ${{ runner.os }}-sonar
+        restore-keys: ${{ runner.os }}-sonar
+        
+    - name: Cache Maven dependencies
+      uses: actions/cache@v4
+      with:
+        path: .m2/repository
+        key: ${{ runner.os }}-maven-${{ hashFiles('**/pom.xml') }}
+        restore-keys: |
+          ${{ runner.os }}-maven-
+          
+    # Multi-module analysis for all microservices
+    - name: Run SonarQube Analysis
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
+      run: |
+        echo "🔍 Running SonarQube analysis for all microservices..."
+        
+        # Build all services first
+        services=(
+          "customer-service"
+          "api-gateway" 
+          "service-registry"
+          "registration-service"
+          "email-service"
+          "token-service"
+          "google-service"
+          "stripe-service"
+        )
+        
+        # Run tests to generate coverage data
+        for service in "${services[@]}"; do
+          if [ -d "$service" ]; then
+            echo "🧪 Testing $service for coverage data..."
+            cd $service
+            mvn clean test jacoco:report -q
+            cd ..
+          fi
+        done
+        
+        # Run SonarQube analysis on root project (multi-module)
+        mvn sonar:sonar \
+          -Dsonar.projectKey=nngc-microservices \
+          -Dsonar.organization=${{ secrets.SONAR_ORGANIZATION }} \
+          -Dsonar.host.url=${{ env.SONAR_HOST_URL }} \
+          -Dsonar.token=${{ env.SONAR_TOKEN }} \
+          -Dsonar.java.coveragePlugin=jacoco \
+          -Dsonar.coverage.jacoco.xmlReportPaths=target/site/jacoco/jacoco.xml \
+          -Dsonar.junit.reportPaths=target/surefire-reports \
+          -Dsonar.exclusions=**/target/**,**/src/test/** \
+          -Dsonar.java.source=23 \
+          -Dsonar.java.target=23
+
+  # Individual service analysis for detailed metrics
+  service-analysis:
+    runs-on: ubuntu-latest
+    name: Individual Service Analysis
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    
+    strategy:
+      matrix:
+        service: [
+          customer-service,
+          api-gateway,
+          service-registry,
+          registration-service,
+          email-service,
+          token-service,
+          google-service,
+          stripe-service
+        ]
+      fail-fast: false
+      
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+        
+    - name: Set up JDK 23
+      uses: actions/setup-java@v4
+      with:
+        java-version: ${{ env.JAVA_VERSION }}
+        distribution: 'temurin'
+        
+    - name: Cache SonarQube packages
+      uses: actions/cache@v4
+      with:
+        path: ~/.sonar/cache
+        key: ${{ runner.os }}-sonar-${{ matrix.service }}
+        restore-keys: ${{ runner.os }}-sonar-
+        
+    - name: Cache Maven dependencies
+      uses: actions/cache@v4
+      with:
+        path: .m2/repository
+        key: ${{ runner.os }}-maven-${{ hashFiles('**/pom.xml') }}
+        restore-keys: |
+          ${{ runner.os }}-maven-
+          
+    - name: Analyze ${{ matrix.service }}
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
+      run: |
+        if [ -d "${{ matrix.service }}" ]; then
+          echo "🔍 Analyzing ${{ matrix.service }} individually..."
+          cd ${{ matrix.service }}
+          
+          # Build and test with coverage
+          mvn clean test jacoco:report -q
+          
+          # Run SonarQube analysis for individual service
+          mvn sonar:sonar \
+            -Dsonar.projectKey=nngc-${{ matrix.service }} \
+            -Dsonar.organization=${{ secrets.SONAR_ORGANIZATION }} \
+            -Dsonar.host.url=${{ env.SONAR_HOST_URL }} \
+            -Dsonar.token=${{ env.SONAR_TOKEN }} \
+            -Dsonar.java.coveragePlugin=jacoco \
+            -Dsonar.coverage.jacoco.xmlReportPaths=target/site/jacoco/jacoco.xml \
+            -Dsonar.junit.reportPaths=target/surefire-reports \
+            -Dsonar.java.source=23 \
+            -Dsonar.java.target=23 \
+            -Dsonar.projectName="NNGC ${{ matrix.service }}"
+        else
+          echo "⚠️  Service ${{ matrix.service }} not found"
+        fi
+
+  # Quality gate check
+  quality-gate:
+    needs: sonarqube-analysis
+    runs-on: ubuntu-latest
+    name: SonarQube Quality Gate Check
+    if: github.event_name == 'pull_request'
+    
+    steps:
+    - name: Wait for SonarQube Quality Gate
+      uses: sonarqube-quality-gate-action@master
+      env:
+        SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
+      with:
+        scanMetadataReportFile: target/sonar/report-task.txt
+        
+    - name: Quality Gate Status
+      run: |
+        if [ "${{ steps.quality-gate.outputs.quality-gate-status }}" != "PASSED" ]; then
+          echo "❌ SonarQube Quality Gate failed!"
+          echo "Quality Gate Status: ${{ steps.quality-gate.outputs.quality-gate-status }}"
+          exit 1
+        else
+          echo "✅ SonarQube Quality Gate passed!"
+        fi
+
+  # Security hotspot analysis
+  security-analysis:
+    runs-on: ubuntu-latest
+    name: Security Hotspot Analysis
+    needs: sonarqube-analysis
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Security Hotspot Check
+      env:
+        SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
+      run: |
+        echo "🔒 Checking for security hotspots..."
+        
+        # Use SonarQube web API to check for security issues
+        curl -s -u "${{ env.SONAR_TOKEN }}:" \
+          "${{ env.SONAR_HOST_URL }}/api/hotspots/search?projectKey=nngc-microservices&status=TO_REVIEW" \
+          -o security-hotspots.json
+        
+        hotspot_count=$(jq '.hotspots | length' security-hotspots.json)
+        
+        if [ "$hotspot_count" -gt 0 ]; then
+          echo "⚠️  Found $hotspot_count security hotspots requiring review"
+          jq -r '.hotspots[] | "- \(.message) in \(.component)"' security-hotspots.json
+        else
+          echo "✅ No security hotspots found"
+        fi
+        
+        # Check for high/critical vulnerabilities
+        curl -s -u "${{ env.SONAR_TOKEN }}:" \
+          "${{ env.SONAR_HOST_URL }}/api/issues/search?componentKeys=nngc-microservices&types=VULNERABILITY&severities=CRITICAL,MAJOR" \
+          -o vulnerabilities.json
+        
+        vuln_count=$(jq '.issues | length' vulnerabilities.json)
+        
+        if [ "$vuln_count" -gt 0 ]; then
+          echo "🚨 Found $vuln_count critical/major vulnerabilities!"
+          jq -r '.issues[] | "- \(.message) in \(.component) (\(.severity))"' vulnerabilities.json
+          exit 1
+        else
+          echo "✅ No critical vulnerabilities found"
+        fi

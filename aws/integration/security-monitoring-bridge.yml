@@ -1,0 +1,496 @@
+# Security-Monitoring Integration Bridge
+# Connects all security events with monitoring and alerting systems
+
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'NNGC Security-Monitoring Integration Bridge'
+
+Parameters:
+  ProjectName:
+    Type: String
+    Default: 'nngc-microservices'
+  Environment:
+    Type: String
+    Default: 'production'
+  AlertEmail:
+    Type: String
+    Description: 'Email for security alerts'
+  SlackWebhook:
+    Type: String
+    Default: ''
+    Description: 'Slack webhook for notifications'
+
+Resources:
+  # Central Security Events Topic
+  SecurityEventsTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      TopicName: !Sub '${ProjectName}-security-events'
+      DisplayName: 'NNGC Security Events Hub'
+
+  # CloudWatch Log Groups for Security Events
+  SecurityEventsLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub '/aws/${ProjectName}/security-events'
+      RetentionInDays: 90
+
+  ApplicationSecurityLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub '/aws/${ProjectName}/application-security'
+      RetentionInDays: 30
+
+  # Security-Monitoring Integration Lambda
+  SecurityMonitoringBridge:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-security-monitoring-bridge'
+      Runtime: python3.11
+      Handler: index.handler
+      Role: !GetAtt SecurityMonitoringRole.Arn
+      Timeout: 300
+      Code:
+        ZipFile: |
+          import json
+          import boto3
+          import os
+          import time
+          from datetime import datetime, timedelta
+          
+          # Initialize AWS clients
+          cloudwatch = boto3.client('cloudwatch')
+          sns = boto3.client('sns')
+          xray = boto3.client('xray')
+          
+          def handler(event, context):
+              """
+              Central hub for security-monitoring integration
+              Processes security events and creates monitoring metrics
+              """
+              
+              print(f"Processing security event: {json.dumps(event)}")
+              
+              try:
+                  for record in event.get('Records', []):
+                      if record.get('EventSource') == 'aws:sns':
+                          process_security_event(json.loads(record['Sns']['Message']))
+                      elif record.get('eventSource'):
+                          process_aws_security_event(record)
+                  
+                  return {'statusCode': 200, 'body': 'Events processed successfully'}
+                  
+              except Exception as e:
+                  print(f"Error processing security events: {e}")
+                  send_error_notification(str(e))
+                  return {'statusCode': 500, 'body': f'Error: {e}'}
+          
+          def process_security_event(security_event):
+              """Process security events from applications"""
+              
+              event_type = security_event.get('eventType', 'UNKNOWN')
+              severity = security_event.get('severity', 'MEDIUM')
+              service_name = security_event.get('serviceName', 'unknown')
+              
+              # Create CloudWatch custom metrics
+              create_security_metrics(event_type, severity, service_name)
+              
+              # Send to X-Ray for correlation
+              create_xray_security_trace(security_event)
+              
+              # Trigger alerts based on severity
+              if severity in ['HIGH', 'CRITICAL']:
+                  send_security_alert(security_event)
+              
+              # Update security dashboard
+              update_security_dashboard(security_event)
+          
+          def process_aws_security_event(aws_event):
+              """Process AWS security service events"""
+              
+              source = aws_event.get('source', '')
+              detail_type = aws_event.get('detail-type', '')
+              
+              if source == 'aws.guardduty':
+                  process_guardduty_finding(aws_event)
+              elif source == 'aws.config':
+                  process_config_compliance(aws_event)
+              elif source == 'aws.inspector2':
+                  process_inspector_finding(aws_event)
+              elif source == 'aws.securityhub':
+                  process_security_hub_finding(aws_event)
+          
+          def create_security_metrics(event_type, severity, service_name):
+              """Create CloudWatch metrics for security events"""
+              
+              namespace = f"{os.environ['PROJECT_NAME']}/Security"
+              timestamp = datetime.utcnow()
+              
+              metrics = [
+                  {
+                      'MetricName': 'SecurityEvents',
+                      'Dimensions': [
+                          {'Name': 'EventType', 'Value': event_type},
+                          {'Name': 'Severity', 'Value': severity},
+                          {'Name': 'Service', 'Value': service_name}
+                      ],
+                      'Value': 1,
+                      'Unit': 'Count',
+                      'Timestamp': timestamp
+                  },
+                  {
+                      'MetricName': 'SecurityEventsByService',
+                      'Dimensions': [{'Name': 'Service', 'Value': service_name}],
+                      'Value': 1,
+                      'Unit': 'Count',
+                      'Timestamp': timestamp
+                  }
+              ]
+              
+              # Add severity-specific metrics
+              if severity in ['HIGH', 'CRITICAL']:
+                  metrics.append({
+                      'MetricName': 'CriticalSecurityEvents',
+                      'Dimensions': [{'Name': 'Service', 'Value': service_name}],
+                      'Value': 1,
+                      'Unit': 'Count',
+                      'Timestamp': timestamp
+                  })
+              
+              cloudwatch.put_metric_data(
+                  Namespace=namespace,
+                  MetricData=metrics
+              )
+              
+              print(f"Created {len(metrics)} security metrics")
+          
+          def create_xray_security_trace(security_event):
+              """Create X-Ray trace for security event correlation"""
+              
+              trace_id = security_event.get('correlationId', f"security-{int(time.time())}")
+              
+              # Create trace segment
+              segment_doc = {
+                  "id": trace_id,
+                  "name": "security-event",
+                  "start_time": time.time(),
+                  "end_time": time.time() + 0.1,
+                  "annotations": {
+                      "event_type": security_event.get('eventType'),
+                      "severity": security_event.get('severity'),
+                      "service": security_event.get('serviceName'),
+                      "user_id": security_event.get('userId', 'unknown')
+                  },
+                  "metadata": {
+                      "security": {
+                          "event_details": security_event.get('details', {}),
+                          "source_ip": security_event.get('sourceIp'),
+                          "timestamp": security_event.get('timestamp')
+                      }
+                  }
+              }
+              
+              try:
+                  xray.put_trace_segments(TraceSegmentDocuments=[json.dumps(segment_doc)])
+                  print(f"Created X-Ray security trace: {trace_id}")
+              except Exception as e:
+                  print(f"Failed to create X-Ray trace: {e}")
+          
+          def process_guardduty_finding(guardduty_event):
+              """Process GuardDuty security findings"""
+              
+              finding = guardduty_event.get('detail', {})
+              severity = finding.get('severity', 0)
+              finding_type = finding.get('type', 'Unknown')
+              
+              # Create metrics
+              cloudwatch.put_metric_data(
+                  Namespace=f"{os.environ['PROJECT_NAME']}/GuardDuty",
+                  MetricData=[
+                      {
+                          'MetricName': 'ThreatDetections',
+                          'Dimensions': [
+                              {'Name': 'FindingType', 'Value': finding_type},
+                              {'Name': 'Severity', 'Value': str(int(severity))}
+                          ],
+                          'Value': 1,
+                          'Unit': 'Count',
+                          'Timestamp': datetime.utcnow()
+                      }
+                  ]
+              )
+              
+              # High severity findings trigger immediate alerts
+              if severity >= 7.0:
+                  send_critical_security_alert({
+                      'type': 'GuardDuty Critical Finding',
+                      'finding_type': finding_type,
+                      'severity': severity,
+                      'description': finding.get('description', 'No description available')
+                  })
+          
+          def send_security_alert(security_event):
+              """Send security alert via SNS"""
+              
+              message = f"""
+              🚨 SECURITY ALERT - NNGC MicroServices
+              
+              Event Type: {security_event.get('eventType')}
+              Severity: {security_event.get('severity')}
+              Service: {security_event.get('serviceName')}
+              Time: {security_event.get('timestamp')}
+              User: {security_event.get('userId', 'Unknown')}
+              Source IP: {security_event.get('sourceIp', 'Unknown')}
+              
+              Details: {security_event.get('details', 'No details available')}
+              
+              Correlation ID: {security_event.get('correlationId')}
+              
+              Action Required: Investigate immediately
+              """
+              
+              sns.publish(
+                  TopicArn=os.environ['SECURITY_TOPIC_ARN'],
+                  Message=message,
+                  Subject=f"SECURITY ALERT: {security_event.get('eventType')}"
+              )
+          
+          def send_critical_security_alert(alert_data):
+              """Send critical security alert"""
+              
+              message = f"""
+              🚨 CRITICAL SECURITY INCIDENT - NNGC MicroServices
+              
+              Type: {alert_data.get('type')}
+              Severity: {alert_data.get('severity')}
+              
+              {alert_data.get('description')}
+              
+              IMMEDIATE ACTION REQUIRED
+              """
+              
+              sns.publish(
+                  TopicArn=os.environ['SECURITY_TOPIC_ARN'],
+                  Message=message,
+                  Subject="CRITICAL SECURITY INCIDENT"
+              )
+          
+          def update_security_dashboard(security_event):
+              """Update security dashboard with latest event"""
+              
+              # This would typically update a custom dashboard
+              # For now, we'll create a metric for dashboard consumption
+              cloudwatch.put_metric_data(
+                  Namespace=f"{os.environ['PROJECT_NAME']}/SecurityDashboard",
+                  MetricData=[
+                      {
+                          'MetricName': 'LastSecurityEvent',
+                          'Value': time.time(),
+                          'Unit': 'None',
+                          'Timestamp': datetime.utcnow()
+                      }
+                  ]
+              )
+          
+          def send_error_notification(error_message):
+              """Send error notification for bridge failures"""
+              
+              sns.publish(
+                  TopicArn=os.environ['SECURITY_TOPIC_ARN'],
+                  Message=f"Security-Monitoring Bridge Error: {error_message}",
+                  Subject="Security Bridge Error"
+              )
+      Environment:
+        Variables:
+          PROJECT_NAME: !Ref ProjectName
+          SECURITY_TOPIC_ARN: !Ref SecurityEventsTopic
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Project  
+          Value: !Ref ProjectName
+
+  # EventBridge Rules for Security Integration
+  GuardDutyEventRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Name: !Sub '${ProjectName}-guardduty-security-bridge'
+      EventPattern:
+        source:
+          - aws.guardduty
+        detail-type:
+          - GuardDuty Finding
+      Targets:
+        - Arn: !GetAtt SecurityMonitoringBridge.Arn
+          Id: 'GuardDutySecurityBridge'
+
+  ConfigComplianceEventRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Name: !Sub '${ProjectName}-config-security-bridge'
+      EventPattern:
+        source:
+          - aws.config
+        detail-type:
+          - Config Rules Compliance Change
+      Targets:
+        - Arn: !GetAtt SecurityMonitoringBridge.Arn
+          Id: 'ConfigSecurityBridge'
+
+  # Custom CloudWatch Dashboard for Security-Monitoring Integration
+  SecurityMonitoringDashboard:
+    Type: AWS::CloudWatch::Dashboard
+    Properties:
+      DashboardName: !Sub '${ProjectName}-security-monitoring'
+      DashboardBody: !Sub |
+        {
+          "widgets": [
+            {
+              "type": "metric",
+              "x": 0,
+              "y": 0,
+              "width": 12,
+              "height": 6,
+              "properties": {
+                "metrics": [
+                  [ "${ProjectName}/Security", "SecurityEvents", "Severity", "HIGH" ],
+                  [ "...", "CRITICAL" ],
+                  [ "...", "MEDIUM" ],
+                  [ "...", "LOW" ]
+                ],
+                "view": "timeSeries",
+                "stacked": false,
+                "region": "${AWS::Region}",
+                "title": "Security Events by Severity",
+                "period": 300
+              }
+            },
+            {
+              "type": "metric",
+              "x": 12,
+              "y": 0,
+              "width": 12,
+              "height": 6,
+              "properties": {
+                "metrics": [
+                  [ "${ProjectName}/Security", "SecurityEventsByService", "Service", "api-gateway" ],
+                  [ "...", "customer-service" ],
+                  [ "...", "token-service" ],
+                  [ "...", "email-service" ]
+                ],
+                "view": "timeSeries",
+                "stacked": false,
+                "region": "${AWS::Region}",
+                "title": "Security Events by Service",
+                "period": 300
+              }
+            },
+            {
+              "type": "metric",
+              "x": 0,
+              "y": 6,
+              "width": 8,
+              "height": 6,
+              "properties": {
+                "metrics": [
+                  [ "${ProjectName}/GuardDuty", "ThreatDetections" ]
+                ],
+                "view": "timeSeries",
+                "stacked": false,
+                "region": "${AWS::Region}",
+                "title": "GuardDuty Threat Detections",
+                "period": 300
+              }
+            },
+            {
+              "type": "log",
+              "x": 8,
+              "y": 6,
+              "width": 16,
+              "height": 6,
+              "properties": {
+                "query": "SOURCE '/aws/${ProjectName}/security-events'\n| fields @timestamp, eventType, severity, serviceName, details\n| filter severity = \"HIGH\" or severity = \"CRITICAL\"\n| sort @timestamp desc\n| limit 20",
+                "region": "${AWS::Region}",
+                "title": "Recent Critical Security Events",
+                "view": "table"
+              }
+            }
+          ]
+        }
+
+  # CloudWatch Alarms for Security-Monitoring Integration
+  CriticalSecurityEventsAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub '${ProjectName}-critical-security-events'
+      AlarmDescription: 'Too many critical security events detected'
+      MetricName: CriticalSecurityEvents
+      Namespace: !Sub '${ProjectName}/Security'
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 3
+      ComparisonOperator: GreaterThanThreshold
+      AlarmActions:
+        - !Ref SecurityEventsTopic
+      TreatMissingData: notBreaching
+
+  SecurityEventRateAlarm:
+    Type: AWS::CloudWatch::Alarm  
+    Properties:
+      AlarmName: !Sub '${ProjectName}-security-event-rate'
+      AlarmDescription: 'High rate of security events detected'
+      MetricName: SecurityEvents
+      Namespace: !Sub '${ProjectName}/Security'
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 2
+      Threshold: 20
+      ComparisonOperator: GreaterThanThreshold
+      AlarmActions:
+        - !Ref SecurityEventsTopic
+
+  # IAM Role for Security-Monitoring Bridge
+  SecurityMonitoringRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub '${ProjectName}-security-monitoring-role'
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: SecurityMonitoringAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - cloudwatch:PutMetricData
+                  - cloudwatch:GetMetricStatistics
+                  - xray:PutTraceSegments
+                  - xray:PutTelemetryRecords
+                  - sns:Publish
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource: '*'
+
+Outputs:
+  SecurityEventsTopic:
+    Description: 'Central Security Events Topic ARN'
+    Value: !Ref SecurityEventsTopic
+    Export:
+      Name: !Sub '${ProjectName}-security-events-topic'
+      
+  SecurityMonitoringBridge:
+    Description: 'Security-Monitoring Bridge Function ARN'
+    Value: !GetAtt SecurityMonitoringBridge.Arn
+    
+  SecurityDashboardURL:
+    Description: 'Security-Monitoring Dashboard URL'
+    Value: !Sub 'https://console.aws.amazon.com/cloudwatch/home?region=${AWS::Region}#dashboards:name=${ProjectName}-security-monitoring'

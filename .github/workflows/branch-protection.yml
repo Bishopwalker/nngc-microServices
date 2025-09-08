@@ -1,0 +1,314 @@
+name: Branch Protection and Quality Gates
+
+on:
+  push:
+    branches: [ main, bishop_dev ]
+  pull_request:
+    branches: [ main, bishop_dev ]
+  workflow_dispatch:
+
+env:
+  JAVA_VERSION: '23'
+
+jobs:
+  # Validate PR requirements
+  pr-validation:
+    runs-on: ubuntu-latest
+    name: Pull Request Validation
+    if: github.event_name == 'pull_request'
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+        
+    - name: Validate PR Title
+      run: |
+        pr_title="${{ github.event.pull_request.title }}"
+        echo "🔍 Validating PR title: $pr_title"
+        
+        # Check conventional commit format
+        if [[ "$pr_title" =~ ^(feat|fix|docs|style|refactor|test|chore|security|perf|ci|build|revert)(\([a-z0-9-]+\))?: .+ ]]; then
+          echo "✅ PR title follows conventional commit format"
+        else
+          echo "❌ PR title must follow conventional commit format"
+          echo "💡 Example: feat(customer-service): add customer search functionality"
+          exit 1
+        fi
+        
+        # Check title length
+        if [ ${#pr_title} -gt 72 ]; then
+          echo "❌ PR title too long: ${#pr_title} characters (max 72)"
+          exit 1
+        fi
+        
+        if [ ${#pr_title} -lt 10 ]; then
+          echo "❌ PR title too short: ${#pr_title} characters (min 10)"
+          exit 1
+        fi
+        
+    - name: Check Feature Isolation
+      run: |
+        echo "🔍 Checking feature isolation in PR..."
+        
+        # Get changed files
+        changed_files=$(git diff --name-only origin/${{ github.base_ref }}...HEAD)
+        echo "Changed files:"
+        echo "$changed_files"
+        
+        # Check services affected
+        services_changed=$(echo "$changed_files" | grep -E '^(api-gateway|customer-service|registration-service|token-service|email-service|google-service|stripe-service|service-registry)/' | cut -d'/' -f1 | sort -u | wc -l)
+        
+        echo "Services affected: $services_changed"
+        
+        if [ "$services_changed" -gt 2 ]; then
+          echo "⚠️  Multiple services modified in single PR: $services_changed"
+          echo "This may make code review more difficult."
+          
+          # List affected services
+          echo "Affected services:"
+          echo "$changed_files" | grep -E '^(api-gateway|customer-service|registration-service|token-service|email-service|google-service|stripe-service|service-registry)/' | cut -d'/' -f1 | sort -u | sed 's/^/  - /'
+        else
+          echo "✅ Good feature isolation: $services_changed service(s) affected"
+        fi
+        
+    - name: Check PR Size
+      run: |
+        echo "📊 Analyzing PR size..."
+        
+        # Count changes
+        added_lines=$(git diff --numstat origin/${{ github.base_ref }}...HEAD | awk '{sum += $1} END {print sum}')
+        deleted_lines=$(git diff --numstat origin/${{ github.base_ref }}...HEAD | awk '{sum += $2} END {print sum}')
+        total_changes=$((added_lines + deleted_lines))
+        
+        echo "Lines added: $added_lines"
+        echo "Lines deleted: $deleted_lines"
+        echo "Total changes: $total_changes"
+        
+        # Provide size guidance
+        if [ "$total_changes" -gt 1000 ]; then
+          echo "🚨 Large PR detected: $total_changes lines changed"
+          echo "Consider breaking this into smaller PRs for easier review"
+        elif [ "$total_changes" -gt 500 ]; then
+          echo "⚠️  Medium-large PR: $total_changes lines changed"
+          echo "Ensure this is well-documented and tested"
+        else
+          echo "✅ Reasonable PR size: $total_changes lines changed"
+        fi
+
+  # Comprehensive testing before merge
+  pre-merge-tests:
+    runs-on: ubuntu-latest
+    name: Pre-Merge Quality Gates
+    if: github.event_name == 'pull_request'
+    
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_PASSWORD: testpass
+          POSTGRES_DB: nngc_test
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Set up JDK 23
+      uses: actions/setup-java@v4
+      with:
+        java-version: ${{ env.JAVA_VERSION }}
+        distribution: 'temurin'
+        
+    - name: Cache Maven dependencies
+      uses: actions/cache@v4
+      with:
+        path: .m2/repository
+        key: ${{ runner.os }}-maven-${{ hashFiles('**/pom.xml') }}
+        restore-keys: |
+          ${{ runner.os }}-maven-
+          
+    - name: Build All Services
+      run: |
+        echo "🔨 Building all services for integration testing..."
+        
+        services=(
+          "service-registry"
+          "customer-service"
+          "api-gateway" 
+          "registration-service"
+          "token-service"
+          "email-service"
+          "google-service"
+          "stripe-service"
+        )
+        
+        for service in "${services[@]}"; do
+          if [ -d "$service" ]; then
+            echo "Building $service..."
+            cd $service
+            mvn clean compile -q
+            cd ..
+          fi
+        done
+        
+    - name: Run Comprehensive Tests
+      run: |
+        echo "🧪 Running comprehensive test suite..."
+        
+        # Run tests for all services
+        for service in service-registry customer-service api-gateway registration-service token-service email-service google-service stripe-service; do
+          if [ -d "$service" ]; then
+            echo "Testing $service..."
+            cd $service
+            mvn test -q
+            cd ..
+          fi
+        done
+        
+    - name: Integration Test
+      run: |
+        echo "🔗 Running integration tests..."
+        
+        # Start services in dependency order for integration testing
+        echo "Starting Service Registry..."
+        cd service-registry
+        mvn spring-boot:run -Dspring.profiles.active=test &
+        registry_pid=$!
+        cd ..
+        sleep 30
+        
+        # Verify service registry is up
+        curl -f http://localhost:8761/actuator/health || (echo "Service Registry failed to start" && exit 1)
+        
+        echo "Starting API Gateway..."
+        cd api-gateway
+        mvn spring-boot:run -Dspring.profiles.active=test &
+        gateway_pid=$!
+        cd ..
+        sleep 45
+        
+        # Basic integration test
+        curl -f http://localhost:8080/actuator/health || (echo "API Gateway failed to start" && exit 1)
+        
+        echo "✅ Basic integration test passed"
+        
+        # Cleanup
+        kill $registry_pid $gateway_pid || true
+
+  # Security validation for PRs
+  pr-security-check:
+    runs-on: ubuntu-latest
+    name: PR Security Validation
+    if: github.event_name == 'pull_request'
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+        
+    - name: Check for Secrets
+      run: |
+        echo "🔒 Scanning for potential secrets..."
+        
+        # Check for common secret patterns in diff
+        secrets_found=$(git diff origin/${{ github.base_ref }}...HEAD | grep -i -E "(password|secret|key|token)\s*[:=]\s*['\"][^'\"]*['\"]" | grep -v -E "\\\$|@Value|#|//|/\*|\*/|TODO|FIXME" | wc -l)
+        
+        if [ "$secrets_found" -gt 0 ]; then
+          echo "🚨 Potential secrets detected in PR:"
+          git diff origin/${{ github.base_ref }}...HEAD | grep -i -E "(password|secret|key|token)\s*[:=]\s*['\"][^'\"]*['\"]" | grep -v -E "\\\$|@Value|#|//|/\*|\*/|TODO|FIXME"
+          echo "❌ BLOCKED: Remove hardcoded secrets before merge"
+          exit 1
+        else
+          echo "✅ No hardcoded secrets detected"
+        fi
+        
+    - name: Security-Sensitive Files Check
+      run: |
+        echo "🔍 Checking for security-sensitive file changes..."
+        
+        security_files=$(git diff --name-only origin/${{ github.base_ref }}...HEAD | grep -E "(Security|Auth|JWT|CORS|Config)" | wc -l)
+        
+        if [ "$security_files" -gt 0 ]; then
+          echo "🔒 Security-sensitive files modified:"
+          git diff --name-only origin/${{ github.base_ref }}...HEAD | grep -E "(Security|Auth|JWT|CORS|Config)" | sed 's/^/  - /'
+          echo "⚠️  This PR requires security review"
+        else
+          echo "✅ No security-sensitive files modified"
+        fi
+
+  # Merge protection enforcement
+  merge-protection:
+    runs-on: ubuntu-latest
+    name: Merge Protection Enforcement
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/bishop_dev')
+    
+    steps:
+    - name: Check Merge Requirements
+      run: |
+        echo "🛡️ Enforcing merge protection for ${{ github.ref_name }}"
+        
+        # Check if this is a direct push (not via PR)
+        if [ "${{ github.event.forced }}" == "true" ]; then
+          echo "🚨 Force push detected to protected branch!"
+          echo "This may have bypassed required checks"
+        fi
+        
+        # Validate commit message format
+        commit_msg="${{ github.event.head_commit.message }}"
+        if [[ ! "$commit_msg" =~ ^(feat|fix|docs|style|refactor|test|chore|security|perf|ci|build|revert|Merge)(\([a-z0-9-]+\))?: .+ ]]; then
+          echo "❌ Direct push with invalid commit message format"
+          echo "Message: $commit_msg"
+          exit 1
+        fi
+        
+        echo "✅ Merge protection checks passed"
+
+  # Post-merge cleanup and notifications
+  post-merge:
+    runs-on: ubuntu-latest
+    name: Post-Merge Actions  
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    
+    steps:
+    - name: Merge Success Notification
+      run: |
+        echo "🎉 Successful merge to main branch"
+        echo "Commit: ${{ github.sha }}"
+        echo "Author: ${{ github.event.head_commit.author.name }}"
+        echo "Message: ${{ github.event.head_commit.message }}"
+        
+    - name: Trigger Deployment Pipeline
+      run: |
+        echo "🚀 Production deployment pipeline would be triggered here"
+        echo "For now, this is informational only"
+        
+        # In a real scenario, this would trigger:
+        # - Docker image builds
+        # - Security scans
+        # - Deployment to staging
+        # - Production deployment after approval
+
+# Branch protection rules (configure via GitHub UI or API)
+# This workflow validates the rules, but rules must be set in GitHub settings:
+#
+# For main branch:
+# - Require pull request reviews before merging
+# - Dismiss stale reviews when new commits are pushed  
+# - Require review from code owners
+# - Require status checks to pass before merging
+# - Require conversation resolution before merging
+# - Restrict pushes that create files larger than 100MB
+#
+# For bishop_dev branch:  
+# - Require pull request reviews before merging
+# - Require status checks to pass before merging
+# - Allow force pushes (for development flexibility)

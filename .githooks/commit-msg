@@ -1,0 +1,219 @@
+#!/bin/bash
+# NNGC MicroServices Commit Message Hook
+# Validates commit message format and suggests improvements
+
+set -e
+
+# Input: commit message file
+commit_msg_file=$1
+commit_msg=$(cat "$commit_msg_file")
+
+# Color codes
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+NC='\033[0m'
+
+print_status() {
+    local color=$1
+    local message=$2
+    echo -e "${color}${message}${NC}"
+}
+
+echo "📝 Commit Message Validation"
+echo "============================="
+
+# Skip validation for merge commits, revert commits, etc.
+if [[ "$commit_msg" =~ ^(Merge|Revert|fixup!|squash!) ]]; then
+    print_status $BLUE "ℹ️  Skipping validation for special commit: $(echo "$commit_msg" | head -1)"
+    exit 0
+fi
+
+# Extract first line (title)
+commit_title=$(echo "$commit_msg" | head -1)
+commit_body=$(echo "$commit_msg" | tail -n +3)
+
+print_status $BLUE "🔍 Analyzing commit message..."
+echo "Title: $commit_title"
+
+# 1. Check title length
+title_length=${#commit_title}
+if [ "$title_length" -gt 72 ]; then
+    print_status $RED "❌ Title too long: $title_length characters (max 72)"
+    print_status $BLUE "💡 Try to summarize the change more concisely"
+    exit 1
+elif [ "$title_length" -gt 50 ]; then
+    print_status $YELLOW "⚠️  Title is long: $title_length characters (recommended max 50)"
+fi
+
+if [ "$title_length" -lt 10 ]; then
+    print_status $RED "❌ Title too short: $title_length characters (min 10)"
+    print_status $BLUE "💡 Provide more descriptive information"
+    exit 1
+fi
+
+# 2. Check conventional commit format
+conventional_pattern="^(feat|fix|docs|style|refactor|test|chore|security|perf|ci|build|revert)(\([a-z0-9-]+\))?: .+"
+
+if [[ "$commit_title" =~ $conventional_pattern ]]; then
+    print_status $GREEN "✅ Conventional commit format detected"
+    
+    # Extract type and scope
+    commit_type=$(echo "$commit_title" | sed -n 's/^\([a-z]*\).*/\1/p')
+    if [[ "$commit_title" =~ \(([^)]+)\) ]]; then
+        commit_scope=$(echo "$commit_title" | sed -n 's/^[a-z]*(\([^)]*\)).*/\1/p')
+    else
+        commit_scope=""
+    fi
+    
+    print_status $BLUE "  Type: $commit_type"
+    [ -n "$commit_scope" ] && print_status $BLUE "  Scope: $commit_scope"
+    
+else
+    print_status $YELLOW "⚠️  Non-conventional commit format"
+    print_status $BLUE "💡 Recommended format: type(scope): description"
+    print_status $BLUE "   Example: feat(customer-service): add customer search functionality"
+    print_status $BLUE "   Types: feat, fix, docs, style, refactor, test, chore, security, perf"
+    
+    # Ask if user wants to continue
+    echo ""
+    read -p "Continue with non-conventional format? (y/N): " -n 1 -r
+    echo ""
+    if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+        print_status $RED "❌ Commit cancelled - please fix message format"
+        exit 1
+    fi
+fi
+
+# 3. Check for proper capitalization
+first_word_after_colon=$(echo "$commit_title" | sed -n 's/^[^:]*: *\(.\).*/\1/p')
+if [ -n "$first_word_after_colon" ]; then
+    if [[ "$first_word_after_colon" =~ [A-Z] ]]; then
+        print_status $YELLOW "⚠️  Description starts with capital letter"
+        print_status $BLUE "💡 Conventional commits use lowercase: 'add feature' not 'Add feature'"
+    else
+        print_status $GREEN "✅ Proper capitalization"
+    fi
+fi
+
+# 4. Check for period at end
+if [[ "$commit_title" =~ \.$ ]]; then
+    print_status $YELLOW "⚠️  Title ends with period"
+    print_status $BLUE "💡 Commit titles typically don't end with periods"
+fi
+
+# 5. Validate scope against known services
+if [ -n "$commit_scope" ]; then
+    valid_scopes="api-gateway customer-service registration-service token-service email-service google-service stripe-service service-registry infrastructure ci security docs"
+    
+    if [[ " $valid_scopes " =~ " $commit_scope " ]]; then
+        print_status $GREEN "✅ Valid scope: $commit_scope"
+    else
+        print_status $YELLOW "⚠️  Unknown scope: $commit_scope"
+        print_status $BLUE "💡 Valid scopes: $(echo $valid_scopes | tr ' ' ', ')"
+    fi
+fi
+
+# 6. Check commit body (if present)
+if [ -n "$commit_body" ]; then
+    print_status $BLUE "📄 Body content detected"
+    
+    # Check for blank line after title
+    second_line=$(echo "$commit_msg" | sed -n '2p')
+    if [ -n "$second_line" ]; then
+        print_status $YELLOW "⚠️  Missing blank line after title"
+        print_status $BLUE "💡 Add blank line between title and body"
+    else
+        print_status $GREEN "✅ Proper blank line after title"
+    fi
+    
+    # Check body line length
+    body_line_count=0
+    long_lines=0
+    
+    while IFS= read -r line; do
+        if [ -n "$line" ]; then
+            body_line_count=$((body_line_count + 1))
+            if [ ${#line} -gt 72 ]; then
+                long_lines=$((long_lines + 1))
+            fi
+        fi
+    done <<< "$commit_body"
+    
+    if [ "$long_lines" -gt 0 ]; then
+        print_status $YELLOW "⚠️  $long_lines line(s) in body exceed 72 characters"
+        print_status $BLUE "💡 Wrap long lines for better readability"
+    fi
+    
+    print_status $BLUE "  Body lines: $body_line_count"
+else
+    print_status $BLUE "📄 No body content"
+fi
+
+# 7. Check for common anti-patterns
+common_bad_messages="fix|update|change|modify|improve|refactor|cleanup|wip|temp|test"
+
+if [[ "$commit_title" =~ ^($common_bad_messages)$ ]]; then
+    print_status $RED "❌ Vague commit message: '$commit_title'"
+    print_status $BLUE "💡 Be more specific about what was fixed/updated/changed"
+    exit 1
+fi
+
+# 8. Security-related commits should be marked
+if [[ "$commit_msg" =~ (password|secret|auth|security|vulnerability|exploit|injection|xss|csrf) ]]; then
+    if [[ ! "$commit_type" == "security" ]]; then
+        print_status $YELLOW "⚠️  Security-related changes detected but type is not 'security'"
+        print_status $BLUE "💡 Consider using 'security' type for security-related changes"
+    else
+        print_status $GREEN "✅ Security changes properly labeled"
+    fi
+fi
+
+# 9. Breaking changes detection
+if [[ "$commit_msg" =~ (BREAKING CHANGE|breaking change) ]]; then
+    print_status $YELLOW "🚨 BREAKING CHANGE detected"
+    if [[ ! "$commit_title" =~ !: ]]; then
+        print_status $YELLOW "💡 Consider adding '!' to indicate breaking change: feat!: or fix!:"
+    fi
+fi
+
+# 10. Suggest improvements for common scenarios
+suggest_improvements() {
+    local title="$1"
+    local type="$2"
+    
+    case "$type" in
+        "feat")
+            if [[ ! "$title" =~ (add|implement|create|introduce) ]]; then
+                print_status $BLUE "💡 Consider starting with action words: add, implement, create, introduce"
+            fi
+            ;;
+        "fix")
+            if [[ ! "$title" =~ (resolve|correct|repair|address) ]]; then
+                print_status $BLUE "💡 Consider starting with: resolve, correct, repair, address"
+            fi
+            ;;
+        "refactor")
+            if [[ ! "$title" =~ (restructure|reorganize|simplify|optimize) ]]; then
+                print_status $BLUE "💡 Consider: restructure, reorganize, simplify, optimize"
+            fi
+            ;;
+    esac
+}
+
+if [ -n "$commit_type" ]; then
+    suggest_improvements "$commit_title" "$commit_type"
+fi
+
+# Final validation summary
+echo ""
+print_status $GREEN "🎉 COMMIT MESSAGE VALIDATION PASSED"
+echo "=================================="
+print_status $BLUE "Message approved: $commit_title"
+
+# Log the commit for analytics (optional)
+current_branch=$(git branch --show-current)
+echo "$(date): [$current_branch] $commit_title" >> .git/commit-log.txt 2>/dev/null || true
+
+exit 0

@@ -1,0 +1,109 @@
+# OWASP ZAP Baseline Rules for NNGC MicroServices
+# Format: RULE_ID	THRESHOLD	[COMMENT]
+# IGNORE: Rules to ignore (won't be reported)
+# WARN: Rules that should generate warnings only
+# FAIL: Rules that should cause pipeline failure
+# PASS: Rules to explicitly pass
+
+# Ignore common false positives for Spring Boot applications
+IGNORE	10021	# Incomplete or No Cache-control and Pragma HTTP Header Set (actuator endpoints)
+IGNORE	10017	# Cross-Domain JavaScript Source File Inclusion (common in SPAs)
+IGNORE	10096	# Timestamp Disclosure - Unix (Spring Boot actuator timestamps)
+IGNORE	10104	# User Agent Fuzzer (not relevant for API testing)
+IGNORE	40012	# Cross Site Scripting (Reflected) - false positives on JSON APIs
+
+# Security headers - WARN level (should be implemented but not critical for development)
+WARN	10016	# Web Browser XSS Protection Not Enabled
+WARN	10020	# X-Frame-Options Header Not Set
+WARN	10035	# Strict-Transport-Security Header Not Set
+WARN	10038	# Content Security Policy (CSP) Header Not Set
+WARN	10063	# Feature Policy Header Not Set
+
+# Authentication and session management - FAIL level (critical for security)
+FAIL	10040	# Secure Cookie Not Set Over HTTPS
+FAIL	10041	# HTTP Parameter Override
+FAIL	10043	# User Controllable HTML Element Attribute (Potential XSS)
+FAIL	10045	# Source Code Disclosure - /WEB-INF folder
+FAIL	10048	# ShellShock - CVE-2014-6271
+FAIL	10049	# Content Cacheability
+FAIL	10050	# Retrieved from Cache
+
+# Input validation - FAIL level (critical vulnerabilities)
+FAIL	40003	# CRLF Injection
+FAIL	40008	# Parameter Tampering  
+FAIL	40009	# Server Side Include
+FAIL	40013	# Session Fixation
+FAIL	40014	# Cross Site Scripting (Persistent)
+FAIL	40016	# Cross Site Scripting (Persistent) - Prime
+FAIL	40017	# Cross Site Scripting (Persistent) - Spider
+FAIL	40018	# SQL Injection
+FAIL	40019	# SQL Injection - MySQL
+FAIL	40020	# SQL Injection - Hypersonic SQL
+FAIL	40021	# SQL Injection - Oracle
+FAIL	40022	# SQL Injection - PostgreSQL
+FAIL	40024	# SQL Injection - SQLite
+
+# Directory traversal and file inclusion - FAIL level
+FAIL	40025	# Generic Padding Oracle
+FAIL	40026	# Cross Site Scripting (DOM Based)
+FAIL	40027	# SQL Injection - MsSQL
+FAIL	40028	# LDAP Injection
+FAIL	40029	# XPATH Injection
+FAIL	90001	# Insecure JSF ViewState
+FAIL	90017	# XSLT Injection
+FAIL	90019	# Code Injection
+FAIL	90020	# Command Injection
+FAIL	90021	# XPath Injection
+FAIL	90022	# Application Error Disclosure
+FAIL	90023	# XML External Entity Attack
+FAIL	90024	# Generic Padding Oracle
+FAIL	90025	# Expression Language Injection
+FAIL	90026	# SOAP Action Spoofing
+FAIL	90027	# Cookie Slack Detector
+FAIL	90028	# Insecure Authentication
+FAIL	90029	# LDAP Injection
+FAIL	90030	# WSDL File Passive Scanner
+
+# Information disclosure - WARN level
+WARN	10009	# In Page Banner Information Leak
+WARN	10010	# Cookie No HttpOnly Flag
+WARN	10011	# Cookie Without Secure Flag
+WARN	10015	# Re-examine Cache-control Directives
+WARN	10017	# Cross-Domain JavaScript Source File Inclusion
+WARN	10019	# Content-Type Header Missing
+WARN	10024	# Information Disclosure - Sensitive Information in URL
+WARN	10025	# Information Disclosure - Sensitive Information in HTTP Referrer Header
+WARN	10026	# HTTP Parameter Override
+WARN	10027	# Information Disclosure - Suspicious Comments
+WARN	10028	# Open Redirect
+WARN	10032	# Viewstate without MAC Signature
+WARN	10033	# Directory Browsing
+WARN	10034	# Heartbleed OpenSSL Vulnerability
+WARN	10036	# Server Leaks Version Information via "Server" HTTP Response Header Field
+WARN	10037	# Server Leaks Information via "X-Powered-By" HTTP Response Header Field(s)
+WARN	10039	# Web Application Potentially Vulnerable to Clickjacking
+WARN	10042	# Spring4Shell - CVE-2022-22965
+WARN	10044	# Big Redirect Detected (Potential Sensitive Information Leak)
+WARN	10047	# HTTPS Content Available via HTTP
+
+# Custom rules for Spring Boot microservices
+WARN	90033	# Loosely Scoped Cookie (Spring Security JSESSIONID)
+WARN	90034	# Cloud Metadata Potentially Exposed (AWS metadata endpoints)
+
+# Rules specific to REST APIs
+FAIL	40023	# Possible Username Enumeration
+WARN	10061	# X-AspNet-Version Response Header
+WARN	10062	# PII Disclosure
+WARN	90011	# Charset Mismatch
+
+# OWASP API Security Top 10 related rules
+FAIL	100001	# Broken Object Level Authorization
+FAIL	100002	# Broken User Authentication  
+FAIL	100003	# Excessive Data Exposure
+FAIL	100004	# Lack of Resources & Rate Limiting
+FAIL	100005	# Broken Function Level Authorization
+FAIL	100006	# Mass Assignment
+FAIL	100007	# Security Misconfiguration
+FAIL	100008	# Injection
+FAIL	100009	# Improper Assets Management
+FAIL	100010	# Insufficient Logging & Monitoring

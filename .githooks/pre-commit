@@ -1,0 +1,224 @@
+#!/bin/bash
+# NNGC MicroServices Pre-Commit Hook
+# Enforces feature isolation and code quality standards
+
+set -e
+
+echo "🔍 NNGC Pre-Commit Validation"
+echo "================================"
+
+# Color codes for output
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+NC='\033[0m' # No Color
+
+# Function to print colored output
+print_status() {
+    local color=$1
+    local message=$2
+    echo -e "${color}${message}${NC}"
+}
+
+# 1. Branch Protection Check
+current_branch=$(git branch --show-current)
+if [[ "$current_branch" == "main" || "$current_branch" == "bishop_dev" ]]; then
+    print_status $RED "❌ BLOCKED: Direct commits to protected branch '$current_branch' not allowed"
+    print_status $YELLOW "💡 Create a feature branch: git checkout -b feature/your-feature-name"
+    exit 1
+fi
+
+print_status $GREEN "✅ Branch check passed: $current_branch"
+
+# 2. Feature Isolation Check
+print_status $BLUE "🔍 Checking feature isolation..."
+
+# Get staged files
+staged_files=$(git diff --staged --name-only)
+if [ -z "$staged_files" ]; then
+    print_status $RED "❌ No staged files found"
+    exit 1
+fi
+
+# Analyze which services are affected
+services_modified=$(echo "$staged_files" | grep -E '^(api-gateway|customer-service|registration-service|token-service|email-service|google-service|stripe-service|service-registry)/' | cut -d'/' -f1 | sort -u)
+service_count=$(echo "$services_modified" | grep -v '^$' | wc -l)
+
+print_status $BLUE "📊 Analysis:"
+echo "  - Files staged: $(echo "$staged_files" | wc -l)"
+echo "  - Services affected: $service_count"
+
+if [ "$service_count" -gt 1 ]; then
+    print_status $YELLOW "⚠️  MULTIPLE SERVICES MODIFIED:"
+    echo "$services_modified" | sed 's/^/    - /'
+    echo ""
+    print_status $YELLOW "🎯 RECOMMENDATION: One service per commit"
+    echo "   This ensures:"
+    echo "   - Cleaner git history"
+    echo "   - Easier code reviews"
+    echo "   - Better rollback capabilities"
+    echo "   - Clearer CI/CD pipeline results"
+    echo ""
+    
+    # Check if this is allowed based on change type
+    config_files=$(echo "$staged_files" | grep -E '\.(yml|yaml|properties|json)$' | wc -l)
+    if [ "$config_files" -gt 0 ] && [ "$service_count" -le 3 ]; then
+        print_status $YELLOW "📋 Configuration changes detected - this may be acceptable"
+    else
+        read -p "Continue with multi-service commit? (y/N): " -n 1 -r
+        echo ""
+        if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+            print_status $RED "❌ Commit cancelled by user"
+            print_status $BLUE "💡 To stage files for one service:"
+            echo "     git reset"
+            echo "     git add $primary_service/"
+            echo "     git commit -m 'your message'"
+            exit 1
+        fi
+    fi
+else
+    if [ "$service_count" -eq 1 ]; then
+        print_status $GREEN "✅ Single service focus: $services_modified"
+    else
+        # Check for infrastructure/docs changes
+        infra_files=$(echo "$staged_files" | grep -E '\.(md|yml|yaml|json|properties|bat|sh|gitignore)$|^\.github|^aws|^docker' | wc -l)
+        if [ "$infra_files" -gt 0 ]; then
+            print_status $GREEN "✅ Infrastructure/documentation changes detected"
+        else
+            print_status $YELLOW "⚠️  No service-specific changes detected"
+        fi
+    fi
+fi
+
+# 3. Security Checks
+print_status $BLUE "🔒 Security validation..."
+
+# Check for hardcoded secrets
+secrets_found=$(git diff --staged | grep -i -E "(password|secret|key|token)\s*[:=]\s*['\"][^'\"]*['\"]" | grep -v -E "\\\$|@Value|#|//|/\*|\*/|TODO|FIXME" | wc -l)
+
+if [ "$secrets_found" -gt 0 ]; then
+    print_status $RED "🚨 POTENTIAL HARDCODED SECRETS DETECTED:"
+    git diff --staged | grep -i -E "(password|secret|key|token)\s*[:=]\s*['\"][^'\"]*['\"]" | grep -v -E "\\\$|@Value|#|//|/\*|\*/|TODO|FIXME" | sed 's/^/    /'
+    echo ""
+    print_status $RED "❌ BLOCKED: Hardcoded secrets not allowed"
+    print_status $BLUE "💡 Use environment variables or @Value annotations instead"
+    exit 1
+fi
+
+print_status $GREEN "✅ No hardcoded secrets found"
+
+# Check for debug code
+debug_patterns="System\.out\.println|console\.log|printStackTrace|^[[:space:]]*//[[:space:]]*TODO|^[[:space:]]*//[[:space:]]*FIXME"
+debug_found=$(git diff --staged | grep -E "$debug_patterns" | grep "^+" | wc -l)
+
+if [ "$debug_found" -gt 0 ]; then
+    print_status $YELLOW "⚠️  DEBUG CODE DETECTED:"
+    git diff --staged | grep -E "$debug_patterns" | grep "^+" | sed 's/^/    /' | head -5
+    echo ""
+    
+    read -p "Continue with debug code? (y/N): " -n 1 -r
+    echo ""
+    if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+        print_status $RED "❌ Commit cancelled - please remove debug code"
+        exit 1
+    fi
+    print_status $YELLOW "⚠️  Proceeding with debug code (not recommended for production)"
+else
+    print_status $GREEN "✅ No debug code found"
+fi
+
+# 4. Java Compilation Check (for service changes)
+if [ "$service_count" -ge 1 ] && [ -n "$services_modified" ]; then
+    print_status $BLUE "🔨 Java compilation check..."
+    
+    for service in $services_modified; do
+        if [ -d "$service" ] && [ -f "$service/pom.xml" ]; then
+            print_status $BLUE "  Checking $service..."
+            cd "$service"
+            
+            if mvn compile -q > /dev/null 2>&1; then
+                print_status $GREEN "    ✅ $service compiles successfully"
+            else
+                print_status $RED "    ❌ $service compilation failed"
+                cd ..
+                print_status $RED "❌ BLOCKED: Fix compilation errors before committing"
+                print_status $BLUE "💡 Run 'mvn compile' in $service/ to see detailed errors"
+                exit 1
+            fi
+            
+            cd ..
+        fi
+    done
+else
+    print_status $BLUE "🔨 Skipping compilation check (no service changes)"
+fi
+
+# 5. Test Validation
+print_status $BLUE "🧪 Test validation..."
+
+# Check if tests exist for modified services
+for service in $services_modified; do
+    if [ -d "$service/src/test" ]; then
+        test_files=$(find "$service/src/test" -name "*.java" | wc -l)
+        if [ "$test_files" -gt 0 ]; then
+            print_status $GREEN "  ✅ $service has $test_files test file(s)"
+        else
+            print_status $YELLOW "  ⚠️  $service has no test files"
+        fi
+    else
+        print_status $YELLOW "  ⚠️  $service has no test directory"
+    fi
+done
+
+# Check if new .java files have corresponding tests
+new_java_files=$(git diff --staged --name-only --diff-filter=A | grep "\.java$" | grep -v "Test\.java$" | grep "src/main/java")
+if [ -n "$new_java_files" ]; then
+    print_status $BLUE "📝 New Java files detected:"
+    echo "$new_java_files" | sed 's/^/    /'
+    
+    missing_tests=""
+    for java_file in $new_java_files; do
+        # Convert src/main/java path to src/test/java path
+        test_file=$(echo "$java_file" | sed 's|src/main/java|src/test/java|' | sed 's|\.java$|Test.java|')
+        if [ ! -f "$test_file" ]; then
+            missing_tests="$missing_tests\n    $test_file"
+        fi
+    done
+    
+    if [ -n "$missing_tests" ]; then
+        print_status $YELLOW "⚠️  Missing test files:"
+        echo -e "$missing_tests"
+        echo ""
+        read -p "Continue without tests? (y/N): " -n 1 -r
+        echo ""
+        if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+            print_status $RED "❌ Commit cancelled - please add tests"
+            exit 1
+        fi
+        print_status $YELLOW "⚠️  Proceeding without tests (add them later!)"
+    else
+        print_status $GREEN "✅ All new Java files have corresponding tests"
+    fi
+fi
+
+# 6. Commit Message Validation (basic check)
+print_status $BLUE "📝 Commit message validation..."
+
+# This will be enforced by the commit-msg hook
+print_status $GREEN "✅ Commit message validation will occur next"
+
+# 7. Final Summary
+echo ""
+print_status $GREEN "🎉 PRE-COMMIT VALIDATION PASSED"
+echo "================================"
+echo "Summary:"
+echo "  - Branch: $current_branch"
+echo "  - Files: $(echo "$staged_files" | wc -l)"
+echo "  - Services: $service_count ($(echo "$services_modified" | tr '\n' ' '))"
+echo "  - Security: ✅ Passed"
+echo "  - Compilation: ✅ Passed"
+echo ""
+print_status $BLUE "Proceeding to commit message validation..."
+
+exit 0

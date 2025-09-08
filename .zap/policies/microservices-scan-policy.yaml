@@ -1,0 +1,259 @@
+# OWASP ZAP Scan Policy for Spring Boot Microservices
+# Optimized for microservices architecture with REST APIs
+
+policy_name: "NNGC MicroServices Security Policy"
+description: "Comprehensive security scanning policy for Spring Boot microservices architecture"
+
+# Global scan settings
+scan_settings:
+  max_scan_time_minutes: 30
+  max_depth: 5
+  thread_count: 3
+  delay_between_requests_ms: 1000
+  user_agent: "ZAP-NNGC-Security-Scanner/1.0"
+
+# Authentication configuration
+authentication:
+  # JWT token authentication for protected endpoints
+  jwt:
+    enabled: true
+    login_url: "http://localhost:8083/api/tokens/generate"
+    username_field: "username" 
+    password_field: "password"
+    test_credentials:
+      username: "testuser"
+      password: "testpass123"
+    token_extraction: "$.token"
+    token_header: "Authorization"
+    token_prefix: "Bearer "
+  
+  # Session-based authentication fallback
+  session:
+    enabled: true
+    login_url: "http://localhost:8080/api/auth/login"
+    logout_url: "http://localhost:8080/api/auth/logout"
+    username_field: "email"
+    password_field: "password"
+    session_management: "cookie"
+
+# URL inclusion/exclusion patterns
+scope:
+  include_urls:
+    - "http://localhost:8080/api/.*"      # API Gateway endpoints
+    - "http://localhost:8081/api/.*"      # Customer Service
+    - "http://localhost:8082/api/.*"      # Registration Service
+    - "http://localhost:8083/api/.*"      # Token Service
+    - "http://localhost:8084/api/.*"      # Email Service
+    - "http://localhost:8085/api/.*"      # Stripe Service
+    - "http://localhost:8087/api/.*"      # Google Service
+    
+  exclude_urls:
+    - ".*/actuator/.*"                    # Spring Boot actuator endpoints
+    - ".*/swagger-ui/.*"                  # Swagger UI assets
+    - ".*/webjars/.*"                     # WebJars static content
+    - ".*/favicon.ico"                    # Favicon requests
+    - ".*/static/.*"                      # Static resources
+    - ".*/health"                         # Health check endpoints
+    - ".*/metrics"                        # Metrics endpoints
+    - ".*/prometheus"                     # Prometheus metrics
+
+# Scanner configurations by category
+scanners:
+  # Input validation scanners (HIGH priority)
+  input_validation:
+    sql_injection:
+      enabled: true
+      strength: "HIGH"
+      threshold: "MEDIUM"
+      payloads: ["'; DROP TABLE users--", "' UNION SELECT * FROM information_schema.tables--"]
+    
+    xss_reflected:
+      enabled: true
+      strength: "HIGH" 
+      threshold: "MEDIUM"
+      payloads: ["<script>alert('XSS')</script>", "<img src=x onerror=alert('XSS')>"]
+    
+    xss_persistent:
+      enabled: true
+      strength: "HIGH"
+      threshold: "HIGH"
+    
+    command_injection:
+      enabled: true
+      strength: "HIGH"
+      threshold: "HIGH"
+      payloads: ["; ls -la", "| whoami", "&& cat /etc/passwd"]
+    
+    ldap_injection:
+      enabled: true
+      strength: "MEDIUM"
+      threshold: "MEDIUM"
+    
+    xpath_injection:
+      enabled: true
+      strength: "MEDIUM"
+      threshold: "MEDIUM"
+
+  # Authentication and session scanners
+  authentication:
+    session_fixation:
+      enabled: true
+      strength: "HIGH"
+      threshold: "HIGH"
+    
+    weak_authentication:
+      enabled: true
+      strength: "MEDIUM"
+      threshold: "MEDIUM"
+    
+    jwt_vulnerabilities:
+      enabled: true
+      strength: "HIGH"
+      threshold: "HIGH"
+      checks: ["weak_secret", "none_algorithm", "key_confusion"]
+
+  # Configuration and deployment scanners  
+  configuration:
+    directory_browsing:
+      enabled: true
+      strength: "LOW"
+      threshold: "MEDIUM"
+    
+    backup_files:
+      enabled: true
+      strength: "MEDIUM"
+      threshold: "MEDIUM"
+      extensions: [".bak", ".old", ".backup", ".swp", ".tmp"]
+    
+    sensitive_files:
+      enabled: true
+      strength: "HIGH"
+      threshold: "HIGH"
+      files: ["web.xml", "application.properties", ".env", "config.json"]
+    
+    server_info_disclosure:
+      enabled: true
+      strength: "LOW"
+      threshold: "LOW"
+
+  # Business logic scanners
+  business_logic:
+    forced_browsing:
+      enabled: true
+      strength: "MEDIUM"
+      threshold: "MEDIUM"
+    
+    parameter_tampering:
+      enabled: true
+      strength: "HIGH"
+      threshold: "MEDIUM"
+    
+    privilege_escalation:
+      enabled: true
+      strength: "HIGH"
+      threshold: "HIGH"
+
+# Passive scanner settings
+passive_scanners:
+  security_headers:
+    enabled: true
+    required_headers:
+      - "X-Frame-Options"
+      - "X-Content-Type-Options"
+      - "X-XSS-Protection"
+      - "Strict-Transport-Security"
+      - "Content-Security-Policy"
+  
+  information_disclosure:
+    enabled: true
+    sensitive_patterns:
+      - "password"
+      - "secret"
+      - "api[_-]?key"
+      - "token"
+      - "credential"
+      - "database"
+      - "connection[_-]?string"
+  
+  cookie_security:
+    enabled: true
+    checks:
+      - "httponly"
+      - "secure"
+      - "samesite"
+
+# Attack strength and threshold configurations
+attack_settings:
+  # How aggressive the attacks should be
+  strength_levels:
+    LOW: "Basic checks, minimal false positives"
+    MEDIUM: "Standard checks, balanced approach"
+    HIGH: "Comprehensive checks, may have false positives"
+    INSANE: "Exhaustive checks, high false positive rate"
+
+  # Vulnerability reporting thresholds  
+  threshold_levels:
+    LOW: "Report all findings including informational"
+    MEDIUM: "Report medium risk and above"
+    HIGH: "Report only high and critical findings"
+
+# Microservices-specific configurations
+microservices:
+  service_discovery:
+    eureka_endpoints:
+      - "http://localhost:8761/eureka/apps"
+    consul_endpoints: []
+    
+  api_gateways:
+    - url: "http://localhost:8080"
+      rate_limiting_test: true
+      cors_test: true
+      
+  inter_service_communication:
+    test_direct_access: true
+    test_service_bypass: true
+    
+  container_security:
+    test_metadata_endpoints: true
+    aws_metadata_url: "http://169.254.169.254/latest/meta-data/"
+    
+# Reporting configuration
+reporting:
+  formats: ["html", "json", "xml"]
+  include_request_response: true
+  include_evidence: true
+  severity_mapping:
+    "Informational": "INFO"
+    "Low": "LOW"
+    "Medium": "MEDIUM" 
+    "High": "HIGH"
+    "Critical": "CRITICAL"
+
+# Custom attack payloads for Spring Boot
+custom_payloads:
+  spring_boot_actuator:
+    - "/actuator"
+    - "/actuator/env"
+    - "/actuator/configprops" 
+    - "/actuator/beans"
+    - "/actuator/mappings"
+    - "/management"
+    
+  spring_security_bypass:
+    - "../"
+    - "..%2F"
+    - "%2e%2e%2f"
+    - "....///"
+    
+  jwt_attacks:
+    - "Bearer null"
+    - "Bearer "
+    - "Bearer eyJ0eXAiOiJKV1QiLCJhbGciOiJub25lIn0.eyJzdWIiOiJhZG1pbiJ9."
+
+# Performance tuning
+performance:
+  concurrent_requests: 3
+  request_delay_ms: 1000
+  connection_timeout_ms: 30000
+  read_timeout_ms: 60000
+  max_redirects: 5

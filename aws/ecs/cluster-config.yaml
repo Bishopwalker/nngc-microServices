@@ -1,0 +1,77 @@
+# ECS Cluster Configuration for NNGC MicroServices
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: nngc-ecs-config
+data:
+  cluster_name: "nngc-cluster"
+  region: "us-east-1"  # Change to your preferred region
+  
+  # VPC Configuration
+  vpc_id: "vpc-12345678"  # Replace with your VPC ID
+  private_subnets:
+    - "subnet-12345678"  # Replace with your private subnet IDs
+    - "subnet-87654321"
+  public_subnets:
+    - "subnet-abcdefgh"  # Replace with your public subnet IDs
+    - "subnet-ijklmnop"
+    
+  # Security Groups
+  security_groups:
+    api_gateway: "sg-api-gateway-12345"
+    customer_service: "sg-customer-service-12345"
+    registration_service: "sg-registration-service-12345"
+    token_service: "sg-token-service-12345"
+    email_service: "sg-email-service-12345"
+    google_service: "sg-google-service-12345"
+    stripe_service: "sg-stripe-service-12345"
+    service_registry: "sg-service-registry-12345"
+    database: "sg-database-12345"
+    
+  # Load Balancer Configuration
+  alb_arn: "arn:aws:elasticloadbalancing:us-east-1:YOUR_ACCOUNT:loadbalancer/app/nngc-alb/1234567890123456"
+  
+  # Service Discovery
+  service_discovery_namespace: "nngc.local"
+  
+  # RDS Configuration
+  rds_endpoint: "nngc-db.cluster-xyz.us-east-1.rds.amazonaws.com"
+  rds_port: "5432"
+  
+  # ECR Configuration
+  ecr_repository_uri: "YOUR_ACCOUNT.dkr.ecr.us-east-1.amazonaws.com"
+  
+  # Resource Sizing
+  resource_specs:
+    api_gateway:
+      cpu: "512"
+      memory: "1024"
+      desired_count: "2"
+    customer_service:
+      cpu: "256" 
+      memory: "512"
+      desired_count: "2"
+    registration_service:
+      cpu: "256"
+      memory: "512" 
+      desired_count: "1"
+    token_service:
+      cpu: "256"
+      memory: "512"
+      desired_count: "2"
+    email_service:
+      cpu: "256"
+      memory: "512"
+      desired_count: "1"
+    google_service:
+      cpu: "256"
+      memory: "512"
+      desired_count: "1"
+    stripe_service:
+      cpu: "256"
+      memory: "512"
+      desired_count: "1"
+    service_registry:
+      cpu: "512"
+      memory: "1024"
+      desired_count: "1"

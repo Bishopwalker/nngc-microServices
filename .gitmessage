@@ -1,0 +1,50 @@
+# Commit Message Template for NNGC MicroServices
+#
+# Format: <type>(<scope>): <description>
+#
+# Types:
+#   feat:     New feature or functionality
+#   fix:      Bug fix or issue resolution  
+#   docs:     Documentation changes
+#   style:    Code style, formatting (no logic changes)
+#   refactor: Code restructuring (no new features or fixes)
+#   test:     Adding or updating tests
+#   chore:    Build, CI, dependencies, tooling
+#   security: Security-related changes
+#   perf:     Performance improvements
+#   ci:       CI/CD pipeline changes
+#   build:    Build system or external dependencies
+#   revert:   Reverts a previous commit
+#
+# Scopes (use the primary service affected):
+#   api-gateway, customer-service, registration-service, 
+#   token-service, email-service, google-service, 
+#   stripe-service, service-registry, infrastructure, 
+#   ci, docs, security
+#
+# Examples:
+#   feat(customer-service): add customer search functionality
+#   fix(token-service): resolve JWT validation issue
+#   security(api-gateway): enhance CORS configuration
+#   docs: update deployment guide
+#   chore(infrastructure): update Docker configurations
+#
+# Guidelines:
+# - Use lowercase for type and description
+# - Keep title under 50 characters (max 72)
+# - Use imperative mood: "add" not "added" or "adds"
+# - Don't end title with period
+# - Add blank line before body (if body exists)
+# - Wrap body at 72 characters
+# - Focus on WHY, not just WHAT
+#
+# Body (optional - explain WHY this change was made):
+# - What problem does this solve?
+# - What was the previous behavior?
+# - How does this change address the issue?
+# - Any breaking changes or migration notes?
+#
+# Footer (optional):
+# - Reference issues: Fixes #123, Closes #456
+# - Breaking changes: BREAKING CHANGE: describe what breaks
+# - Co-authored-by: Name <email@example.com>

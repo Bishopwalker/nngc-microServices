@@ -1,0 +1,470 @@
+# AWS X-Ray Configuration for NNGC MicroServices
+# Distributed tracing and performance monitoring
+
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'NNGC MicroServices - AWS X-Ray Distributed Tracing Stack'
+
+Parameters:
+  Environment:
+    Type: String
+    Default: 'production'
+    AllowedValues: ['staging', 'production']
+    
+  ProjectName:
+    Type: String
+    Default: 'nngc-microservices'
+    
+  VpcId:
+    Type: AWS::EC2::VPC::Id
+    Description: 'VPC ID for X-Ray daemon'
+    
+  PrivateSubnetIds:
+    Type: CommaDelimitedList
+    Description: 'Private subnet IDs for X-Ray daemon'
+
+Resources:
+  # X-Ray Service Map and Traces
+  XRayTracingConfig:
+    Type: AWS::XRay::SamplingRule
+    Properties:
+      SamplingRule:
+        RuleName: !Sub '${ProjectName}-default-sampling'
+        Priority: 9000
+        FixedRate: 0.1
+        ReservoirSize: 1
+        ServiceName: '*'
+        ServiceType: '*'
+        Host: '*'
+        HTTPMethod: '*'
+        URLPath: '*'
+        Version: 1
+
+  # High-value endpoints sampling
+  XRayHighValueSampling:
+    Type: AWS::XRay::SamplingRule
+    Properties:
+      SamplingRule:
+        RuleName: !Sub '${ProjectName}-high-value-sampling'
+        Priority: 5000
+        FixedRate: 0.5
+        ReservoirSize: 2
+        ServiceName: 'nngc-api-gateway'
+        ServiceType: '*'
+        Host: '*'
+        HTTPMethod: 'POST'
+        URLPath: '/api/*'
+        Version: 1
+
+  # Authentication endpoints sampling
+  XRayAuthSampling:
+    Type: AWS::XRay::SamplingRule
+    Properties:
+      SamplingRule:
+        RuleName: !Sub '${ProjectName}-auth-sampling'
+        Priority: 4000
+        FixedRate: 1.0
+        ReservoirSize: 1
+        ServiceName: 'nngc-token-service'
+        ServiceType: '*'
+        Host: '*'
+        HTTPMethod: '*'
+        URLPath: '/api/tokens/*'
+        Version: 1
+
+  # Payment processing sampling
+  XRayPaymentSampling:
+    Type: AWS::XRay::SamplingRule
+    Properties:
+      SamplingRule:
+        RuleName: !Sub '${ProjectName}-payment-sampling'
+        Priority: 3000
+        FixedRate: 1.0
+        ReservoirSize: 1
+        ServiceName: 'nngc-stripe-service'
+        ServiceType: '*'
+        Host: '*'
+        HTTPMethod: '*'
+        URLPath: '/api/payments/*'
+        Version: 1
+
+  # X-Ray Daemon Task Definition for ECS
+  XRayDaemonTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: !Sub '${ProjectName}-xray-daemon'
+      NetworkMode: awsvpc
+      RequiresCompatibilities:
+        - FARGATE
+      Cpu: '256'
+      Memory: '512'
+      ExecutionRoleArn: !GetAtt XRayTaskExecutionRole.Arn
+      TaskRoleArn: !GetAtt XRayTaskRole.Arn
+      ContainerDefinitions:
+        - Name: xray-daemon
+          Image: amazon/aws-xray-daemon:latest
+          Essential: true
+          PortMappings:
+            - ContainerPort: 2000
+              Protocol: udp
+          Environment:
+            - Name: AWS_REGION
+              Value: !Ref 'AWS::Region'
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: !Ref XRayLogGroup
+              awslogs-region: !Ref 'AWS::Region'
+              awslogs-stream-prefix: xray-daemon
+          HealthCheck:
+            Command:
+              - CMD-SHELL
+              - 'curl -f http://localhost:2000/ || exit 1'
+            Interval: 30
+            Timeout: 5
+            Retries: 3
+            StartPeriod: 60
+
+  # X-Ray Daemon Service
+  XRayDaemonService:
+    Type: AWS::ECS::Service
+    Properties:
+      ServiceName: !Sub '${ProjectName}-xray-daemon'
+      Cluster: nngc-cluster
+      TaskDefinition: !Ref XRayDaemonTaskDefinition
+      DesiredCount: 1
+      LaunchType: FARGATE
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          SecurityGroups:
+            - !Ref XRaySecurityGroup
+          Subnets: !Ref PrivateSubnetIds
+          AssignPublicIp: DISABLED
+      ServiceRegistries:
+        - RegistryArn: !GetAtt XRayServiceDiscovery.Arn
+          ContainerName: xray-daemon
+          ContainerPort: 2000
+
+  # Service Discovery for X-Ray Daemon
+  XRayServiceDiscovery:
+    Type: AWS::ServiceDiscovery::Service
+    Properties:
+      Name: xray-daemon
+      NamespaceId: !Ref XRayNamespace
+      DnsConfig:
+        DnsRecords:
+          - Type: SRV
+            TTL: 60
+        NamespaceId: !Ref XRayNamespace
+
+  XRayNamespace:
+    Type: AWS::ServiceDiscovery::PrivateDnsNamespace
+    Properties:
+      Name: nngc.local
+      Vpc: !Ref VpcId
+
+  # Security Group for X-Ray Daemon
+  XRaySecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupName: !Sub '${ProjectName}-xray-daemon-sg'
+      GroupDescription: 'Security group for X-Ray daemon'
+      VpcId: !Ref VpcId
+      SecurityGroupIngress:
+        - IpProtocol: udp
+          FromPort: 2000
+          ToPort: 2000
+          SourceSecurityGroupId: !Ref ApplicationSecurityGroup
+          Description: 'X-Ray traces from applications'
+      Tags:
+        - Key: Name
+          Value: !Sub '${ProjectName}-xray-daemon-sg'
+        - Key: Environment
+          Value: !Ref Environment
+
+  # Application Security Group (for applications to send traces)
+  ApplicationSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupName: !Sub '${ProjectName}-app-xray-sg'
+      GroupDescription: 'Security group for applications sending X-Ray traces'
+      VpcId: !Ref VpcId
+      SecurityGroupEgress:
+        - IpProtocol: udp
+          FromPort: 2000
+          ToPort: 2000
+          DestinationSecurityGroupId: !Ref XRaySecurityGroup
+          Description: 'Send X-Ray traces to daemon'
+        - IpProtocol: tcp
+          FromPort: 443
+          ToPort: 443
+          CidrIp: 0.0.0.0/0
+          Description: 'HTTPS outbound for X-Ray API'
+      Tags:
+        - Key: Name
+          Value: !Sub '${ProjectName}-app-xray-sg'
+        - Key: Environment
+          Value: !Ref Environment
+
+  # CloudWatch Log Group for X-Ray Daemon
+  XRayLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub '/aws/ecs/${ProjectName}/xray-daemon'
+      RetentionInDays: 30
+
+  # IAM Roles
+  XRayTaskExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub '${ProjectName}-xray-execution-role'
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ecs-tasks.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy
+
+  XRayTaskRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub '${ProjectName}-xray-task-role'
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ecs-tasks.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AWSXRayDaemonWriteAccess
+
+  # Application X-Ray Role (for microservices)
+  ApplicationXRayRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub '${ProjectName}-app-xray-role'
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ecs-tasks.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: XRayWriteAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - xray:PutTraceSegments
+                  - xray:PutTelemetryRecords
+                  - xray:GetSamplingRules
+                  - xray:GetSamplingTargets
+                Resource: '*'
+
+  # Lambda for X-Ray Analytics
+  XRayAnalyticsLambda:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-xray-analytics'
+      Runtime: python3.11
+      Handler: index.handler
+      Role: !GetAtt XRayAnalyticsRole.Arn
+      Code:
+        ZipFile: |
+          import json
+          import boto3
+          import os
+          from datetime import datetime, timedelta
+          
+          def handler(event, context):
+              """Analyze X-Ray traces and generate performance insights"""
+              
+              xray = boto3.client('xray')
+              cloudwatch = boto3.client('cloudwatch')
+              
+              # Get traces from last hour
+              end_time = datetime.utcnow()
+              start_time = end_time - timedelta(hours=1)
+              
+              try:
+                  # Get trace summaries
+                  response = xray.get_trace_summaries(
+                      TimeRangeType='TimeStamp',
+                      StartTime=start_time,
+                      EndTime=end_time,
+                      FilterExpression='service("nngc-api-gateway")'
+                  )
+                  
+                  # Analyze performance metrics
+                  traces = response.get('TraceSummaries', [])
+                  
+                  if traces:
+                      response_times = [trace.get('ResponseTime', 0) for trace in traces]
+                      error_count = len([trace for trace in traces if trace.get('HasError', False)])
+                      
+                      avg_response_time = sum(response_times) / len(response_times)
+                      p95_response_time = sorted(response_times)[int(len(response_times) * 0.95)]
+                      
+                      # Send custom metrics to CloudWatch
+                      cloudwatch.put_metric_data(
+                          Namespace=f'{os.environ["PROJECT_NAME"]}/XRay',
+                          MetricData=[
+                              {
+                                  'MetricName': 'AverageResponseTime',
+                                  'Value': avg_response_time,
+                                  'Unit': 'Seconds',
+                                  'Timestamp': end_time
+                              },
+                              {
+                                  'MetricName': 'P95ResponseTime',
+                                  'Value': p95_response_time,
+                                  'Unit': 'Seconds',
+                                  'Timestamp': end_time
+                              },
+                              {
+                                  'MetricName': 'ErrorCount',
+                                  'Value': error_count,
+                                  'Unit': 'Count',
+                                  'Timestamp': end_time
+                              },
+                              {
+                                  'MetricName': 'TraceCount',
+                                  'Value': len(traces),
+                                  'Unit': 'Count',
+                                  'Timestamp': end_time
+                              }
+                          ]
+                      )
+                      
+                      print(f"Processed {len(traces)} traces, avg response time: {avg_response_time:.3f}s")
+                  
+                  return {
+                      'statusCode': 200,
+                      'body': json.dumps({
+                          'tracesProcessed': len(traces),
+                          'averageResponseTime': avg_response_time if traces else 0,
+                          'errorCount': error_count if traces else 0
+                      })
+                  }
+                  
+              except Exception as e:
+                  print(f"Error processing X-Ray analytics: {e}")
+                  return {
+                      'statusCode': 500,
+                      'body': json.dumps({'error': str(e)})
+                  }
+      Environment:
+        Variables:
+          PROJECT_NAME: !Ref ProjectName
+      Timeout: 60
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Project
+          Value: !Ref ProjectName
+
+  # EventBridge rule to run analytics hourly
+  XRayAnalyticsSchedule:
+    Type: AWS::Events::Rule
+    Properties:
+      Name: !Sub '${ProjectName}-xray-analytics-schedule'
+      Description: 'Run X-Ray analytics every hour'
+      ScheduleExpression: 'rate(1 hour)'
+      Targets:
+        - Arn: !GetAtt XRayAnalyticsLambda.Arn
+          Id: 'XRayAnalyticsTarget'
+
+  # Lambda permission for EventBridge
+  XRayAnalyticsLambdaPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref XRayAnalyticsLambda
+      Action: lambda:InvokeFunction
+      Principal: events.amazonaws.com
+      SourceArn: !GetAtt XRayAnalyticsSchedule.Arn
+
+  # IAM Role for Analytics Lambda
+  XRayAnalyticsRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub '${ProjectName}-xray-analytics-role'
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: XRayAnalyticsAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - xray:BatchGetTraces
+                  - xray:GetTraceSummaries
+                  - xray:GetServiceGraph
+                  - cloudwatch:PutMetricData
+                Resource: '*'
+
+  # CloudWatch Alarms for X-Ray Metrics
+  XRayHighResponseTimeAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub '${ProjectName}-xray-high-response-time'
+      AlarmDescription: 'X-Ray detected high response times'
+      MetricName: AverageResponseTime
+      Namespace: !Sub '${ProjectName}/XRay'
+      Statistic: Average
+      Period: 300
+      EvaluationPeriods: 2
+      Threshold: 2.0
+      ComparisonOperator: GreaterThanThreshold
+      TreatMissingData: notBreaching
+
+  XRayHighErrorRateAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub '${ProjectName}-xray-high-error-rate'
+      AlarmDescription: 'X-Ray detected high error rate'
+      MetricName: ErrorCount
+      Namespace: !Sub '${ProjectName}/XRay'
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 2
+      Threshold: 5
+      ComparisonOperator: GreaterThanThreshold
+      TreatMissingData: notBreaching
+
+Outputs:
+  XRayServiceMap:
+    Description: 'X-Ray Service Map Console URL'
+    Value: !Sub 'https://console.aws.amazon.com/xray/home?region=${AWS::Region}#/service-map'
+    
+  XRayTraces:
+    Description: 'X-Ray Traces Console URL'  
+    Value: !Sub 'https://console.aws.amazon.com/xray/home?region=${AWS::Region}#/traces'
+    
+  XRayDaemonEndpoint:
+    Description: 'X-Ray Daemon Endpoint for Applications'
+    Value: 'xray-daemon.nngc.local:2000'
+    
+  ApplicationXRayRoleArn:
+    Description: 'IAM Role ARN for applications to send X-Ray traces'
+    Value: !GetAtt ApplicationXRayRole.Arn
+    Export:
+      Name: !Sub '${ProjectName}-app-xray-role-arn'
+      
+  XRaySecurityGroupId:
+    Description: 'Security Group ID for applications sending X-Ray traces'
+    Value: !Ref ApplicationSecurityGroup
+    Export:
+      Name: !Sub '${ProjectName}-xray-app-sg-id'

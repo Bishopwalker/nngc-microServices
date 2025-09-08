@@ -1,0 +1,387 @@
+# AWS Security Services Configuration for NNGC MicroServices
+# Comprehensive security monitoring and compliance setup
+
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'NNGC MicroServices - AWS Security Services Stack'
+
+Parameters:
+  Environment:
+    Type: String
+    Default: 'production'
+    AllowedValues: ['staging', 'production']
+    Description: 'Environment name'
+    
+  ProjectName:
+    Type: String
+    Default: 'nngc-microservices'
+    Description: 'Project name for resource naming'
+    
+  NotificationEmail:
+    Type: String
+    Description: 'Email address for security notifications'
+    
+  VpcId:
+    Type: AWS::EC2::VPC::Id
+    Description: 'VPC ID where resources are deployed'
+
+Resources:
+  # GuardDuty - Threat Detection
+  GuardDutyDetector:
+    Type: AWS::GuardDuty::Detector
+    Properties:
+      Enable: true
+      FindingPublishingFrequency: FIFTEEN_MINUTES
+      DataSources:
+        S3Logs:
+          Enable: true
+        KubernetesConfiguration:
+          AuditLogs:
+            Enable: true
+        MalwareProtection:
+          ScanEc2InstanceWithFindings:
+            EbsVolumes: true
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Project
+          Value: !Ref ProjectName
+        - Key: Service
+          Value: security-guardduty
+
+  # Inspector V2 - Vulnerability Assessment
+  InspectorConfiguration:
+    Type: AWS::Inspector2::Enabler
+    Properties:
+      AccountIds:
+        - !Ref 'AWS::AccountId'
+      ResourceTypes:
+        - ECR
+        - EC2
+      Tags:
+        Environment: !Ref Environment
+        Project: !Ref ProjectName
+
+  # Config - Configuration Compliance
+  ConfigConfigurationRecorder:
+    Type: AWS::Config::ConfigurationRecorder
+    Properties:
+      Name: !Sub '${ProjectName}-config-recorder'
+      RoleARN: !GetAtt ConfigRole.Arn
+      RecordingGroup:
+        AllSupported: true
+        IncludeGlobalResourceTypes: true
+        ResourceTypes: []
+
+  ConfigDeliveryChannel:
+    Type: AWS::Config::DeliveryChannel
+    Properties:
+      Name: !Sub '${ProjectName}-config-delivery-channel'
+      S3BucketName: !Ref ConfigBucket
+      ConfigSnapshotDeliveryProperties:
+        DeliveryFrequency: Daily
+
+  ConfigBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub '${ProjectName}-aws-config-${AWS::AccountId}-${AWS::Region}'
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      VersioningConfiguration:
+        Status: Enabled
+
+  # CloudTrail - API Auditing
+  CloudTrail:
+    Type: AWS::CloudTrail::Trail
+    Properties:
+      TrailName: !Sub '${ProjectName}-cloudtrail'
+      S3BucketName: !Ref CloudTrailBucket
+      IncludeGlobalServiceEvents: true
+      IsMultiRegionTrail: true
+      EnableLogFileValidation: true
+      EventSelectors:
+        - ReadWriteType: All
+          IncludeManagementEvents: true
+          DataResources:
+            - Type: AWS::S3::Object
+              Values: ['arn:aws:s3:::*/*']
+            - Type: AWS::ECS::Task
+              Values: ['*']
+      InsightSelectors:
+        - InsightType: ApiCallRateInsight
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Project
+          Value: !Ref ProjectName
+
+  CloudTrailBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub '${ProjectName}-cloudtrail-${AWS::AccountId}-${AWS::Region}'
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+
+  # Security Hub - Central Security Dashboard
+  SecurityHub:
+    Type: AWS::SecurityHub::Hub
+    Properties:
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Project
+          Value: !Ref ProjectName
+
+  # EventBridge Rules for Security Alerts
+  GuardDutyEventRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Name: !Sub '${ProjectName}-guardduty-findings'
+      Description: 'Route GuardDuty findings to notifications'
+      EventPattern:
+        source:
+          - aws.guardduty
+        detail-type:
+          - GuardDuty Finding
+        detail:
+          severity:
+            - 4.0
+            - 4.1
+            - 4.2
+            - 4.3
+            - 7.0
+            - 7.1
+            - 7.2
+            - 7.3
+            - 8.0
+            - 8.1
+            - 8.2
+            - 8.3
+      Targets:
+        - Arn: !Ref SecurityAlertsTopic
+          Id: 'GuardDutyAlertsTarget'
+        - Arn: !GetAtt SecurityAlertsLambda.Arn
+          Id: 'SecurityProcessingLambda'
+
+  ConfigComplianceEventRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Name: !Sub '${ProjectName}-config-compliance'
+      Description: 'Route Config compliance changes to notifications'
+      EventPattern:
+        source:
+          - aws.config
+        detail-type:
+          - Config Rules Compliance Change
+        detail:
+          complianceType:
+            - NON_COMPLIANT
+      Targets:
+        - Arn: !Ref SecurityAlertsTopic
+          Id: 'ConfigComplianceTarget'
+
+  # SNS Topic for Security Alerts
+  SecurityAlertsTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      TopicName: !Sub '${ProjectName}-security-alerts'
+      DisplayName: 'NNGC Security Alerts'
+      Subscription:
+        - Protocol: email
+          Endpoint: !Ref NotificationEmail
+
+  # Lambda for Processing Security Events
+  SecurityAlertsLambda:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${ProjectName}-security-processor'
+      Runtime: python3.11
+      Handler: index.handler
+      Role: !GetAtt SecurityLambdaRole.Arn
+      Code:
+        ZipFile: |
+          import json
+          import boto3
+          import os
+          
+          def handler(event, context):
+              """Process security events and enrich notifications"""
+              
+              print(f"Received security event: {json.dumps(event)}")
+              
+              # Initialize clients
+              sns = boto3.client('sns')
+              
+              detail = event.get('detail', {})
+              source = event.get('source', '')
+              
+              # Process different event types
+              if source == 'aws.guardduty':
+                  process_guardduty_finding(detail, sns)
+              elif source == 'aws.config':
+                  process_config_compliance(detail, sns)
+              elif source == 'aws.inspector2':
+                  process_inspector_finding(detail, sns)
+              
+              return {'statusCode': 200}
+          
+          def process_guardduty_finding(detail, sns):
+              """Process GuardDuty findings"""
+              severity = detail.get('severity', 0)
+              finding_type = detail.get('type', 'Unknown')
+              
+              if severity >= 7.0:  # High/Critical findings
+                  message = f"""
+                  🚨 CRITICAL GuardDuty Finding - NNGC MicroServices
+                  
+                  Finding Type: {finding_type}
+                  Severity: {severity}
+                  Account: {detail.get('accountId', 'Unknown')}
+                  Region: {detail.get('region', 'Unknown')}
+                  
+                  Description: {detail.get('description', 'No description available')}
+                  
+                  Action Required: Immediate investigation needed
+                  """
+                  
+                  sns.publish(
+                      TopicArn=os.environ['SECURITY_TOPIC_ARN'],
+                      Message=message,
+                      Subject=f'CRITICAL: GuardDuty Finding - {finding_type}'
+                  )
+          
+          def process_config_compliance(detail, sns):
+              """Process Config compliance changes"""
+              resource_type = detail.get('resourceType', 'Unknown')
+              compliance_type = detail.get('complianceType', 'Unknown')
+              
+              if compliance_type == 'NON_COMPLIANT':
+                  message = f"""
+                  ⚠️  AWS Config Compliance Alert - NNGC MicroServices
+                  
+                  Resource Type: {resource_type}
+                  Compliance Status: {compliance_type}
+                  Config Rule: {detail.get('configRuleName', 'Unknown')}
+                  
+                  Action Required: Review and remediate compliance issue
+                  """
+                  
+                  sns.publish(
+                      TopicArn=os.environ['SECURITY_TOPIC_ARN'],
+                      Message=message,
+                      Subject=f'Config Compliance: {resource_type} Non-Compliant'
+                  )
+          
+          def process_inspector_finding(detail, sns):
+              """Process Inspector findings"""
+              severity = detail.get('severity', 'UNKNOWN')
+              
+              if severity in ['CRITICAL', 'HIGH']:
+                  message = f"""
+                  🔍 Inspector Vulnerability Finding - NNGC MicroServices
+                  
+                  Severity: {severity}
+                  Title: {detail.get('title', 'Unknown')}
+                  
+                  Action Required: Review and patch vulnerability
+                  """
+                  
+                  sns.publish(
+                      TopicArn=os.environ['SECURITY_TOPIC_ARN'],
+                      Message=message,
+                      Subject=f'Inspector Finding: {severity} Vulnerability'
+                  )
+      Environment:
+        Variables:
+          SECURITY_TOPIC_ARN: !Ref SecurityAlertsTopic
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: Project
+          Value: !Ref ProjectName
+
+  # IAM Roles
+  ConfigRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub '${ProjectName}-config-role'
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: config.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWS_ConfigRole
+      Policies:
+        - PolicyName: ConfigBucketAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - s3:GetBucketAcl
+                  - s3:ListBucket
+                  - s3:PutObject
+                  - s3:GetObject
+                Resource:
+                  - !GetAtt ConfigBucket.Arn
+                  - !Sub '${ConfigBucket.Arn}/*'
+
+  SecurityLambdaRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub '${ProjectName}-security-lambda-role'
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: SNSPublishAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - sns:Publish
+                Resource: !Ref SecurityAlertsTopic
+
+Outputs:
+  GuardDutyDetectorId:
+    Description: 'GuardDuty Detector ID'
+    Value: !Ref GuardDutyDetector
+    
+  SecurityHubArn:
+    Description: 'Security Hub ARN'
+    Value: !Ref SecurityHub
+    
+  CloudTrailArn:
+    Description: 'CloudTrail ARN'
+    Value: !GetAtt CloudTrail.Arn
+    
+  SecurityAlertsTopicArn:
+    Description: 'Security Alerts SNS Topic ARN'
+    Value: !Ref SecurityAlertsTopic
+    
+  ConfigDeliveryChannelName:
+    Description: 'Config Delivery Channel Name'
+    Value: !Ref ConfigDeliveryChannel
