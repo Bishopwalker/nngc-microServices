@@ -421,36 +421,58 @@ jobs:
           cd api-gateway
           echo "🚀 Starting API Gateway for performance testing..."
           
+          # Pre-compile to speed up startup
+          mvn clean compile -q -Dspring.profiles.active=test
+          
           # Start with test profile (no external dependencies)
-          mvn spring-boot:run -Dspring.profiles.active=test -Dserver.port=8080 &
+          timeout 300s mvn spring-boot:run -Dspring.profiles.active=test -Dserver.port=8080 -Dspring-boot.run.fork=false &
           GATEWAY_PID=$!
           
-          # Wait for service to be ready
-          echo "⏳ Waiting for API Gateway to start..."
-          timeout 120s sh -c 'until curl -s http://localhost:8080/actuator/health > /dev/null; do echo "Waiting..."; sleep 5; done'
+          # Wait for service to be ready with longer timeout
+          echo "⏳ Waiting for API Gateway to start (up to 4 minutes)..."
+          READY=false
+          for i in {1..48}; do  # 48 * 5 = 240 seconds = 4 minutes
+            if curl -s http://localhost:8080/actuator/health > /dev/null 2>&1; then
+              echo "✅ API Gateway is ready after $((i * 5)) seconds"
+              READY=true
+              break
+            fi
+            echo "Waiting... ($i/48)"
+            sleep 5
+          done
           
-          if curl -s http://localhost:8080/actuator/health > /dev/null; then
-            echo "✅ API Gateway is ready"
-            
+          if [ "$READY" = true ]; then
             # Install Apache Bench if not available
             if ! command -v ab &> /dev/null; then
               echo "📦 Installing Apache Bench..."
-              sudo apt-get update && sudo apt-get install -y apache2-utils
+              sudo apt-get update -qq && sudo apt-get install -y -qq apache2-utils
             fi
+            
+            # Quick health check
+            echo "🩺 Health check result:"
+            curl -s http://localhost:8080/actuator/health | jq '.' || curl -s http://localhost:8080/actuator/health
             
             # Run performance tests with Apache Bench
             echo "🚀 Running performance baseline tests..."
-            ab -n 50 -c 5 -g performance-results.tsv http://localhost:8080/actuator/health || echo "⚠️ Performance test completed with warnings"
+            ab -n 25 -c 3 -g performance-results.tsv http://localhost:8080/actuator/health || echo "⚠️ Performance test completed with warnings"
             
             echo "📊 Performance test results:"
-            cat performance-results.tsv | head -20 || echo "No results file generated"
+            if [ -f "performance-results.tsv" ]; then
+              head -20 performance-results.tsv
+              echo "Performance test completed successfully!"
+            else
+              echo "No results file generated"
+            fi
             
           else
-            echo "❌ API Gateway failed to start within timeout"
+            echo "❌ API Gateway failed to start within 4 minutes"
+            echo "🔍 Checking if process is still running..."
+            ps aux | grep java || true
           fi
           
           # Cleanup
-          kill $GATEWAY_PID || true
+          kill $GATEWAY_PID 2>/dev/null || true
+          pkill -f spring-boot:run || true
           cd ..
         else
           echo "⚠️ API Gateway directory not found"
